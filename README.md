@@ -1,39 +1,52 @@
 # appletv-launcher
 
-A custom home screen (launcher) with a dark, premium look inspired by Apple TV:
+An Apple TV-style home screen (launcher) for generic Android TV boxes.
 
-- Large rounded app tiles with a glossy highlight
-- Focused tile scales up with a spring animation, white rim and coloured glow
-- Backdrop colour fades to match the focused app's icon
-- Big app title for the focused app, clock and date top right
+- **Liquid-glass UI**: frosted, translucent tiles, clock and settings panel with a light-catching rim,
+  specular highlights and a soft focus glow
+- **Wallpaper backdrop**: 5 built-in wallpapers, or pick your own photo
+- **16:9 tiles** using each TV app's own banner art (phone apps get their icon on glass)
+- Focused tile zooms with a spring animation, and the backdrop picks up the app's colour
+- **Launcher settings** (gear button on the home screen, or the remote's Menu key)
 - D-pad friendly: arrows to move, OK to open, **hold OK** for app info / uninstall
-- Press Home while on the launcher to jump back to the first tile
-- Works on generic AOSP boxes (shows both TV and regular apps), Android 5.0+
 
-## Build and install
+## Settings
 
-1. Install **Android Studio** (free) and open this folder (`AppleTvLauncher`).
-2. Let Gradle sync (it downloads everything automatically).
-3. `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
-   The APK is at `app/build/outputs/apk/debug/app-debug.apk`.
-4. Copy the APK to the box (USB stick, or `adb connect <box-ip>` then
-   `adb install app-debug.apk`).
-5. Press the Home button on the remote and choose **Home** with *Always*.
-
-If the box asks every time, or keeps its old launcher, set the default under
-Settings > Apps > Default apps > Home app. If your box does not offer that,
-run `adb shell cmd package set-home-activity com.alejandro.tvlauncher/.MainActivity`.
-
-## Customising
-
-All the look lives in `HomeScreen.kt`:
-
-| What | Where |
+| Setting | Options |
 | --- | --- |
-| Tile size / corner roundness | `TileSize`, `TileShape` at the top |
-| Focus zoom and spring feel | `AppTile` > `scale` |
-| Spacing between tiles | `LazyRow` > `horizontalArrangement` |
-| Backdrop colours | `Brush.verticalGradient` in `HomeScreen` |
-| Title size | the hero `Column` |
+| Glass style | Clear / Frosted / Dark |
+| Wallpaper | 5 presets, or "Choose photo…" from storage |
+| Wallpaper dimming | 0 to 70% |
+| Tile size | Small / Medium / Large |
+| App names | Focused only / Always |
+| Backdrop glow from focused app | On / Off |
+| Show non-TV apps | On / Off |
+| Clock format | System / 12-hour / 24-hour |
+| Hidden apps | choose which apps to hide |
+| System shortcuts | Wi-Fi, Android settings, default home app |
 
-App loading and sorting is in `AppRepo.kt`.
+On the settings screen: **Left / Right** change a value, **OK** activates, **Back** closes.
+
+## Getting the APK (no Android Studio needed)
+
+Every push to `main` builds an APK on GitHub:
+
+1. Open the repo's **Actions** tab, then the latest **Build APK** run.
+2. Download **appletv-launcher-debug-apk** from *Artifacts* (a zip containing `app-debug.apk`).
+3. Put `app-debug.apk` on the box (USB stick or the *Downloader* app) and install it.
+4. Press Home on the remote and choose **Home** with *Always*.
+
+If the box keeps its old launcher, set it under Settings > Apps > Default apps > Home app, or run
+`adb shell cmd package set-home-activity com.alejandro.tvlauncher/.MainActivity`.
+
+## Code map
+
+| File | What it does |
+| --- | --- |
+| `Glass.kt` | the liquid-glass modifier (`glass`, `glassRim`) and text helper |
+| `Wallpapers.kt` | wallpaper decoding and the pre-blurred copy used behind glass |
+| `LauncherSettings.kt` | all options, saved automatically |
+| `Launcher.kt` | root: wallpaper layers, then home or settings |
+| `Home.kt` | tiles, hero title, clock, settings button |
+| `SettingsScreen.kt` | the settings pages |
+| `AppRepo.kt` | loads installed apps, icons and banners |

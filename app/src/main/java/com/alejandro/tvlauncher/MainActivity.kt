@@ -4,12 +4,16 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.KeyEvent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,19 +23,30 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var settings: LauncherSettings
+
     private var apps by mutableStateOf<List<AppEntry>>(emptyList())
     private var homeSignal by mutableIntStateOf(0)
+    private var settingsSignal by mutableIntStateOf(0)
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = reloadApps()
     }
 
+    private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) importWallpaper(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        settings = LauncherSettings(this)
 
         // Edge-to-edge, system bars hidden (immersive)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -51,11 +66,15 @@ class MainActivity : ComponentActivity() {
         reloadApps()
 
         setContent {
-            HomeScreen(
-                apps = apps,
+            LauncherRoot(
+                allApps = apps,
+                settings = settings,
                 homeSignal = homeSignal,
+                settingsSignal = settingsSignal,
                 onLaunch = ::launch,
                 onOptions = ::openAppInfo,
+                onPickWallpaper = ::pickWallpaper,
+                onSystemIntent = ::openSystem,
             )
         }
     }
@@ -64,6 +83,15 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal++
+    }
+
+    // The remote's Menu / Settings key opens launcher settings.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            settingsSignal++
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {
@@ -86,6 +114,50 @@ class MainActivity : ComponentActivity() {
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+    }
+
+    private fun openSystem(action: String) {
+        runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure { Toast.makeText(this, "This box doesn't have that screen", Toast.LENGTH_SHORT).show() }
+    }
+
+    private fun pickWallpaper() {
+        runCatching { pickImage.launch("image/*") }
+            .onFailure {
+                Toast.makeText(
+                    this,
+                    "No photo picker found on this box. Install a file manager app and try again.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+    }
+
+    /** Copies the chosen photo into app storage (downscaled) and switches to it. */
+    private fun importWallpaper(uri: Uri) {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    var sample = 1
+                    while (bounds.outWidth / sample > 2400) sample *= 2
+
+                    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                    val bmp = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+                        ?: return@runCatching false
+                    FileOutputStream(Wallpapers.customFile(this@MainActivity)).use {
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 90, it)
+                    }
+                    true
+                }.getOrDefault(false)
+            }
+            if (ok) {
+                settings.wallpaper = Wallpapers.CUSTOM
+                settings.wallpaperRev += 1
+            } else {
+                Toast.makeText(this@MainActivity, "Couldn't read that image", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

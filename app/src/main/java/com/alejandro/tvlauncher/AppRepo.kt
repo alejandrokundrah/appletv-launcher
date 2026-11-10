@@ -2,10 +2,8 @@ package com.alejandro.tvlauncher
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -19,13 +17,18 @@ data class AppEntry(
     val packageName: String,
     val launchIntent: Intent,
     val icon: ImageBitmap,
-    /** Dominant colour of the icon, used to tint the backdrop. */
+    /** Wide 16:9 artwork supplied by Android TV apps (null for phone apps). */
+    val banner: ImageBitmap?,
+    /** Dominant colour of the artwork, used to tint the backdrop. */
     val accent: Color,
+    val isTv: Boolean,
 )
 
 object AppRepo {
 
-    private const val ICON_SIZE = 256
+    private const val ICON_SIZE = 192
+    private const val BANNER_W = 384
+    private const val BANNER_H = 216
 
     suspend fun load(context: Context): List<AppEntry> = withContext(Dispatchers.Default) {
         val pm = context.packageManager
@@ -36,6 +39,7 @@ object AppRepo {
         val regular = pm.queryIntentActivities(
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
         )
+        val tvPackages = leanback.map { it.activityInfo.packageName }.toSet()
 
         // Leanback apps first (they are the TV-optimised ones), then everything else.
         val seen = HashSet<String>()
@@ -52,36 +56,41 @@ object AppRepo {
                     ?: return@runCatching null
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
 
-                val bitmap = info.loadIcon(pm).toBitmap(ICON_SIZE)
+                val iconBmp = info.loadIcon(pm).toBitmap(ICON_SIZE, ICON_SIZE)
+                val bannerBmp: Bitmap? = runCatching {
+                    val d = info.activityInfo.loadBanner(pm)
+                        ?: info.activityInfo.applicationInfo.loadBanner(pm)
+                    d?.toBitmap(BANNER_W, BANNER_H)
+                }.getOrNull()
+
                 AppEntry(
                     label = info.loadLabel(pm).toString(),
                     packageName = pkg,
                     launchIntent = intent,
-                    icon = bitmap.asImageBitmap(),
-                    accent = dominantColor(bitmap),
+                    icon = iconBmp.asImageBitmap(),
+                    banner = bannerBmp?.asImageBitmap(),
+                    accent = dominantColor(bannerBmp ?: iconBmp),
+                    isTv = pkg in tvPackages,
                 )
             }.getOrNull()
         }
     }
 
-    private fun Drawable.toBitmap(size: Int): Bitmap {
-        if (this is BitmapDrawable && bitmap != null && bitmap.width >= size) {
-            return Bitmap.createScaledBitmap(bitmap, size, size, true)
-        }
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    private fun Drawable.toBitmap(width: Int, height: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        setBounds(0, 0, size, size)
+        setBounds(0, 0, width, height)
         draw(canvas)
         return bmp
     }
 
-    /** Average colour of the icon, pushed towards a rich, fairly dark tone for backdrops. */
+    /** Average colour of the artwork, pushed towards a rich, fairly dark tone for backdrops. */
     private fun dominantColor(bmp: Bitmap): Color {
         val px = Bitmap.createScaledBitmap(bmp, 1, 1, true).getPixel(0, 0)
         val hsl = FloatArray(3)
         ColorUtils.colorToHSL(px, hsl)
         hsl[1] = (hsl[1] * 1.25f).coerceIn(0.25f, 0.85f)
-        hsl[2] = hsl[2].coerceIn(0.28f, 0.45f)
+        hsl[2] = hsl[2].coerceIn(0.28f, 0.50f)
         return Color(ColorUtils.HSLToColor(hsl))
     }
 }
