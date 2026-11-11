@@ -1,6 +1,7 @@
 package com.alejandro.tvlauncher
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.KeyEvent
@@ -38,6 +40,8 @@ class MainActivity : ComponentActivity() {
     private var homeSignal by mutableIntStateOf(0)
     private var settingsSignal by mutableIntStateOf(0)
     private var locationGranted by mutableStateOf(false)
+    private var homeStatus by mutableStateOf("")
+    private var isDefaultHome by mutableStateOf(false)
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = reloadApps()
@@ -46,6 +50,11 @@ class MainActivity : ComponentActivity() {
     // Android only shows the Wi-Fi network name to apps that hold a location permission.
     private val askLocation = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         locationGranted = granted
+    }
+
+    // Result of the system "set as home app" dialog (Android 10+).
+    private val homeRole = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        refreshHomeStatus()
     }
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -73,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
         reloadApps()
 
+        refreshHomeStatus()
         locationGranted = hasLocationPermission()
         if (!locationGranted && !settings.askedLocation) {
             settings.askedLocation = true
@@ -86,6 +96,8 @@ class MainActivity : ComponentActivity() {
                 homeSignal = homeSignal,
                 settingsSignal = settingsSignal,
                 locationGranted = locationGranted,
+                homeStatus = homeStatus,
+                onMakeDefault = ::makeDefaultHome,
                 onLaunch = ::launch,
                 onOptions = ::openAppInfo,
                 onPickWallpaper = ::pickWallpaper,
@@ -114,11 +126,56 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // The user may have changed the permission in system settings.
         locationGranted = hasLocationPermission()
+        refreshHomeStatus()
     }
 
     override fun onDestroy() {
         unregisterReceiver(packageReceiver)
         super.onDestroy()
+    }
+
+    /** Asks Android which app the Home button currently opens, so settings can show it. */
+    private fun refreshHomeStatus() {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val pkg = packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        isDefaultHome = pkg == packageName
+        homeStatus = when {
+            pkg == null -> "Unknown"
+            pkg == packageName -> "This launcher"
+            pkg == "android" -> "Not set (system will ask)"
+            else -> {
+                val label = runCatching {
+                    packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+                }.getOrNull()
+                if (label != null && label != pkg) "$label ($pkg)" else pkg
+            }
+        }
+    }
+
+    /** Asks Android to make this launcher the Home app (the official way on Android 10+). */
+    private fun makeDefaultHome() {
+        if (isDefaultHome) {
+            Toast.makeText(this, "This is already the default launcher", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            val rm = getSystemService(RoleManager::class.java)
+            if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_HOME) && !rm.isRoleHeld(RoleManager.ROLE_HOME)) {
+                val launched = runCatching { homeRole.launch(rm.createRequestRoleIntent(RoleManager.ROLE_HOME)) }.isSuccess
+                if (launched) return
+            }
+        }
+        // Older Android, or a box without that dialog: the system's own home-app picker.
+        val opened = runCatching {
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+        if (!opened) {
+            Toast.makeText(
+                this,
+                "Open Android settings > Apps > Default apps > Home app and pick \"Home\".",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
     }
 
     private fun hasLocationPermission(): Boolean =

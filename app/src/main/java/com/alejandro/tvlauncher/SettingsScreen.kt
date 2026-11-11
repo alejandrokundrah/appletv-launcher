@@ -62,6 +62,8 @@ fun SettingsScreen(
     settings: LauncherSettings,
     allApps: List<AppEntry>,
     locationGranted: Boolean,
+    homeStatus: String,
+    onMakeDefault: () -> Unit,
     onClose: () -> Unit,
     onPickWallpaper: () -> Unit,
     onRequestLocation: () -> Unit,
@@ -105,6 +107,8 @@ fun SettingsScreen(
                     settings = settings,
                     first = first,
                     locationGranted = locationGranted,
+                    homeStatus = homeStatus,
+                    onMakeDefault = onMakeDefault,
                     onPickWallpaper = onPickWallpaper,
                     onRequestLocation = onRequestLocation,
                     onSystemIntent = onSystemIntent,
@@ -122,6 +126,8 @@ private fun MainPage(
     settings: LauncherSettings,
     first: FocusRequester,
     locationGranted: Boolean,
+    homeStatus: String,
+    onMakeDefault: () -> Unit,
     onPickWallpaper: () -> Unit,
     onRequestLocation: () -> Unit,
     onSystemIntent: (String) -> Unit,
@@ -256,6 +262,14 @@ private fun MainPage(
         }
 
         item { SectionHeader("SYSTEM") }
+
+        item {
+            SettingRow(
+                title = "Default launcher (Home button)",
+                value = homeStatus,
+                onClick = onMakeDefault,
+            )
+        }
 
         item {
             SettingRow(

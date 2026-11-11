@@ -62,3 +62,24 @@ If the box keeps its old launcher, set it under Settings > Apps > Default apps >
 - **Wi-Fi name**: Android hides the network name from apps unless they hold the location permission **and**
   Location is switched on. The launcher asks once on first start; you can redo it under
   Settings > Status bar. It never reads or stores your actual location.
+
+## Troubleshooting: the Home button opens the old launcher
+
+Open **Settings > System > Default launcher (Home button)**. It shows which app Android sends the Home key to:
+
+- **"This launcher"**: you're set. If Home still goes elsewhere, the box's firmware is overriding it; use the adb command below.
+- **"Not set (system will ask)"**: press OK on the row (Android 10+ shows a "set as home app" dialog), or press Home and
+  pick this launcher with **Always**.
+- **Another app, e.g. `Old Launcher (com.example.launcher)`**: press OK on the row, or clear that app's defaults
+  (Settings > Apps > the old launcher > *Clear defaults*) and press Home again. The package name shown there is what
+  you need for the adb commands.
+
+From a computer on the same network (box in developer mode, `adb connect <box-ip>` first):
+
+```
+adb shell cmd package set-home-activity com.alejandro.tvlauncher/.MainActivity
+```
+
+Each GitHub build is signed with a new throw-away debug key, so installing a newer APK over an older one can fail and
+you have to uninstall first, which also forgets the default-launcher choice. Re-select it after reinstalling.
+
