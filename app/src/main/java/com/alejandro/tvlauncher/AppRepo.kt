@@ -56,11 +56,18 @@ object AppRepo {
                     ?: return@runCatching null
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
 
-                val iconBmp = info.loadIcon(pm).toBitmap(ICON_SIZE, ICON_SIZE)
+                val iconBmp = info.loadIcon(pm).renderFit(ICON_SIZE)
                 val bannerBmp: Bitmap? = runCatching {
                     val d = info.activityInfo.loadBanner(pm)
                         ?: info.activityInfo.applicationInfo.loadBanner(pm)
-                    d?.toBitmap(BANNER_W, BANNER_H)
+                    // Only use banners that really are wide (roughly 16:9). Anything else would be
+                    // stretched or heavily cropped, so those apps get their icon on glass instead.
+                    val ratio = if (d != null && d.intrinsicHeight > 0) {
+                        d.intrinsicWidth.toFloat() / d.intrinsicHeight
+                    } else {
+                        0f
+                    }
+                    if (d != null && ratio in 1.5f..2.1f) d.renderCover(BANNER_W, BANNER_H) else null
                 }.getOrNull()
 
                 AppEntry(
@@ -76,11 +83,33 @@ object AppRepo {
         }
     }
 
-    private fun Drawable.toBitmap(width: Int, height: Int): Bitmap {
+    /** Draws the drawable keeping its aspect ratio, filling the whole bitmap (centre-cropped). */
+    private fun Drawable.renderCover(width: Int, height: Int): Bitmap {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        setBounds(0, 0, width, height)
-        draw(canvas)
+        val iw = if (intrinsicWidth > 0) intrinsicWidth else width
+        val ih = if (intrinsicHeight > 0) intrinsicHeight else height
+        val scale = maxOf(width.toFloat() / iw, height.toFloat() / ih)
+        val dw = (iw * scale).toInt()
+        val dh = (ih * scale).toInt()
+        val left = (width - dw) / 2
+        val top = (height - dh) / 2
+        setBounds(left, top, left + dw, top + dh)
+        draw(Canvas(bmp))
+        return bmp
+    }
+
+    /** Draws the drawable keeping its aspect ratio, fully visible, centred in a square bitmap. */
+    private fun Drawable.renderFit(size: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val iw = if (intrinsicWidth > 0) intrinsicWidth else size
+        val ih = if (intrinsicHeight > 0) intrinsicHeight else size
+        val scale = minOf(size.toFloat() / iw, size.toFloat() / ih)
+        val dw = (iw * scale).toInt()
+        val dh = (ih * scale).toInt()
+        val left = (size - dw) / 2
+        val top = (size - dh) / 2
+        setBounds(left, top, left + dw, top + dh)
+        draw(Canvas(bmp))
         return bmp
     }
 

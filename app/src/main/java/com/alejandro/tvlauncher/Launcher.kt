@@ -23,6 +23,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * Root of the launcher: wallpaper + tint layers behind, then either the home screen or settings.
@@ -34,9 +37,11 @@ fun LauncherRoot(
     settings: LauncherSettings,
     homeSignal: Int,
     settingsSignal: Int,
+    locationGranted: Boolean,
     onLaunch: (AppEntry) -> Unit,
     onOptions: (AppEntry) -> Unit,
     onPickWallpaper: () -> Unit,
+    onRequestLocation: () -> Unit,
     onSystemIntent: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -45,6 +50,34 @@ fun LauncherRoot(
     val wallpaper by produceState<Wallpapers.Loaded?>(null, settings.wallpaper, settings.wallpaperRev) {
         val loaded = runCatching { Wallpapers.load(context, settings.wallpaper) }.getOrNull()
         if (loaded != null) value = loaded
+    }
+
+    // Weather: refreshed every 30 min (retried every minute until the first success).
+    val weather by produceState<WeatherInfo?>(
+        null, settings.showWeather, settings.weatherCity, settings.fahrenheit
+    ) {
+        if (!settings.showWeather) {
+            value = null
+            return@produceState
+        }
+        while (true) {
+            val w = WeatherRepo.fetch(settings.weatherCity, settings.fahrenheit)
+            if (w != null) value = w
+            delay(if (w != null) 30 * 60_000L else 60_000L)
+        }
+    }
+
+    // Network: re-read every few seconds so signal strength and reconnects show up.
+    val net by produceState<NetInfo?>(null, settings.showNetwork, locationGranted) {
+        if (!settings.showNetwork) {
+            value = null
+            return@produceState
+        }
+        while (true) {
+            val n = withContext(Dispatchers.IO) { runCatching { NetStatus.read(context) }.getOrNull() }
+            if (n != null) value = n
+            delay(5_000L)
+        }
     }
 
     var showSettings by remember { mutableStateOf(false) }
@@ -128,8 +161,10 @@ fun LauncherRoot(
                 SettingsScreen(
                     settings = settings,
                     allApps = allApps,
+                    locationGranted = locationGranted,
                     onClose = { showSettings = false },
                     onPickWallpaper = onPickWallpaper,
+                    onRequestLocation = onRequestLocation,
                     onSystemIntent = onSystemIntent,
                 )
             } else {
@@ -137,6 +172,8 @@ fun LauncherRoot(
                     apps = visible,
                     focused = focused,
                     settings = settings,
+                    weather = weather,
+                    net = net,
                     homeSignal = homeSignal,
                     onFocusedIndex = { focusedIndex = it },
                     onLaunch = onLaunch,

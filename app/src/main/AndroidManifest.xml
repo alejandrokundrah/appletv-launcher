@@ -7,6 +7,14 @@
     <!-- Needed on Android 11+ so the launcher can see every installed app -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
+    <!-- Weather (Open-Meteo) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Connection status: Wi-Fi / Ethernet, signal, IP -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Android only reveals the Wi-Fi network name to apps that hold a location permission -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"

@@ -16,6 +16,7 @@ object Wallpapers {
     class Preset(val id: String, val name: String, val full: Int, val thumb: Int)
 
     val presets = listOf(
+        Preset("mask", "Mask", R.drawable.wp_mask, R.drawable.wpt_mask),
         Preset("aurora", "Aurora", R.drawable.wp_aurora, R.drawable.wpt_aurora),
         Preset("dusk", "Dusk", R.drawable.wp_dusk, R.drawable.wpt_dusk),
         Preset("ocean", "Ocean", R.drawable.wp_ocean, R.drawable.wpt_ocean),

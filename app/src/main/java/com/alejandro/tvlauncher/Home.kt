@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +71,8 @@ fun HomeContent(
     apps: List<AppEntry>,
     focused: AppEntry?,
     settings: LauncherSettings,
+    weather: WeatherInfo?,
+    net: NetInfo?,
     homeSignal: Int,
     onFocusedIndex: (Int) -> Unit,
     onLaunch: (AppEntry) -> Unit,
@@ -91,21 +94,29 @@ fun HomeContent(
         }
     }
 
-    val tileWidth: Dp = when (settings.tileSize) {
-        0 -> 224.dp
-        2 -> 328.dp
-        else -> 272.dp
-    }
+    // Size tiles relative to the screen so they look the same on any box / resolution / density.
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val tileWidth: Dp = (screenWidthDp * when (settings.tileSize) {
+        0 -> 0.105f
+        2 -> 0.165f
+        else -> 0.13f
+    }).dp
+    val compact = screenWidthDp < 1100
 
     Column(Modifier.fillMaxSize()) {
-        // Top bar: clock + settings button
+        // Top bar: weather on the left; network, clock and settings on the right
         Row(
-            Modifier.fillMaxWidth().padding(top = 36.dp, start = 72.dp, end = 72.dp),
+            Modifier.fillMaxWidth().padding(top = 32.dp, start = 72.dp, end = 72.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (weather != null) WeatherPill(weather, compact)
             Spacer(Modifier.weight(1f))
-            ClockPill(settings)
-            Spacer(Modifier.width(18.dp))
+            if (net != null) {
+                NetworkPill(net, compact)
+                Spacer(Modifier.width(14.dp))
+            }
+            ClockPill(settings, compact)
+            Spacer(Modifier.width(14.dp))
             SettingsButton(onOpenSettings)
         }
 
@@ -127,7 +138,7 @@ fun HomeContent(
                     },
                     label = "title",
                 ) { title ->
-                    GText(title, 60.sp, FontWeight.Bold, Color.White, maxLines = 1, shadow = true)
+                    GText(title, 48.sp, FontWeight.Bold, Color.White, maxLines = 1, shadow = true)
                 }
                 Spacer(Modifier.height(6.dp))
                 GText(
@@ -215,7 +226,9 @@ private fun AppTile(
                     bitmap = app.icon,
                     contentDescription = app.label,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(height * 0.56f),
+                    modifier = Modifier
+                        .size(height * 0.50f)
+                        .clip(RoundedCornerShape(height * 0.12f)),
                 )
             }
             // Glossy top highlight over artwork
@@ -255,7 +268,7 @@ private fun AppTile(
 }
 
 @Composable
-private fun ClockPill(settings: LauncherSettings) {
+private fun ClockPill(settings: LauncherSettings, compact: Boolean) {
     val context = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
     LaunchedEffect(Unit) {
@@ -276,9 +289,11 @@ private fun ClockPill(settings: LauncherSettings) {
         Modifier.glass(28.dp).padding(horizontal = 26.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GText(time, 32.sp, FontWeight.SemiBold, Color.White)
-        Spacer(Modifier.width(16.dp))
-        GText(date, 18.sp, FontWeight.Normal, Color.White.copy(alpha = 0.75f))
+        GText(time, 30.sp, FontWeight.SemiBold, Color.White)
+        if (!compact) {
+            Spacer(Modifier.width(14.dp))
+            GText(date, 16.sp, FontWeight.Normal, Color.White.copy(alpha = 0.75f))
+        }
     }
 }
 

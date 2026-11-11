@@ -1,9 +1,11 @@
 package com.alejandro.tvlauncher
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -35,9 +37,15 @@ class MainActivity : ComponentActivity() {
     private var apps by mutableStateOf<List<AppEntry>>(emptyList())
     private var homeSignal by mutableIntStateOf(0)
     private var settingsSignal by mutableIntStateOf(0)
+    private var locationGranted by mutableStateOf(false)
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = reloadApps()
+    }
+
+    // Android only shows the Wi-Fi network name to apps that hold a location permission.
+    private val askLocation = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        locationGranted = granted
     }
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -65,15 +73,23 @@ class MainActivity : ComponentActivity() {
 
         reloadApps()
 
+        locationGranted = hasLocationPermission()
+        if (!locationGranted && !settings.askedLocation) {
+            settings.askedLocation = true
+            requestLocation()
+        }
+
         setContent {
             LauncherRoot(
                 allApps = apps,
                 settings = settings,
                 homeSignal = homeSignal,
                 settingsSignal = settingsSignal,
+                locationGranted = locationGranted,
                 onLaunch = ::launch,
                 onOptions = ::openAppInfo,
                 onPickWallpaper = ::pickWallpaper,
+                onRequestLocation = ::requestLocation,
                 onSystemIntent = ::openSystem,
             )
         }
@@ -94,9 +110,27 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // The user may have changed the permission in system settings.
+        locationGranted = hasLocationPermission()
+    }
+
     override fun onDestroy() {
         unregisterReceiver(packageReceiver)
         super.onDestroy()
+    }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun requestLocation() {
+        runCatching { askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
+            .onFailure {
+                // Some boxes have no permission dialog; send the user to this app's settings page instead.
+                openOwnAppSettings()
+            }
     }
 
     private fun reloadApps() {
@@ -106,6 +140,15 @@ class MainActivity : ComponentActivity() {
     private fun launch(app: AppEntry) {
         runCatching { startActivity(app.launchIntent) }
             .onFailure { Toast.makeText(this, "Can't open ${app.label}", Toast.LENGTH_SHORT).show() }
+    }
+
+    private fun openOwnAppSettings() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
     }
 
     private fun openAppInfo(app: AppEntry) {

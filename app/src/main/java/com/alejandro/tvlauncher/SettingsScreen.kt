@@ -61,8 +61,10 @@ private enum class Page { Main, Hidden }
 fun SettingsScreen(
     settings: LauncherSettings,
     allApps: List<AppEntry>,
+    locationGranted: Boolean,
     onClose: () -> Unit,
     onPickWallpaper: () -> Unit,
+    onRequestLocation: () -> Unit,
     onSystemIntent: (String) -> Unit,
 ) {
     var page by remember { mutableStateOf(Page.Main) }
@@ -99,7 +101,15 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             if (page == Page.Main) {
-                MainPage(settings, first, onPickWallpaper, onSystemIntent, onOpenHidden = { page = Page.Hidden })
+                MainPage(
+                    settings = settings,
+                    first = first,
+                    locationGranted = locationGranted,
+                    onPickWallpaper = onPickWallpaper,
+                    onRequestLocation = onRequestLocation,
+                    onSystemIntent = onSystemIntent,
+                    onOpenHidden = { page = Page.Hidden },
+                )
             } else {
                 HiddenPage(settings, allApps, first)
             }
@@ -111,11 +121,14 @@ fun SettingsScreen(
 private fun MainPage(
     settings: LauncherSettings,
     first: FocusRequester,
+    locationGranted: Boolean,
     onPickWallpaper: () -> Unit,
+    onRequestLocation: () -> Unit,
     onSystemIntent: (String) -> Unit,
     onOpenHidden: () -> Unit,
 ) {
     val glassCount = GlassStyle.entries.size
+    val cityCount = WeatherRepo.cities.size
 
     LazyColumn(
         Modifier.fillMaxWidth().fillMaxHeight(),
@@ -190,6 +203,55 @@ private fun MainPage(
                 title = "Hidden apps",
                 value = "${settings.hidden.size} hidden  ›",
                 onClick = onOpenHidden,
+            )
+        }
+
+        item { SectionHeader("STATUS BAR") }
+
+        item {
+            SettingRow(
+                title = "Show weather",
+                value = if (settings.showWeather) "On" else "Off",
+                onLeft = { settings.showWeather = !settings.showWeather },
+                onRight = { settings.showWeather = !settings.showWeather },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Weather location",
+                value = WeatherRepo.cities[settings.weatherCity.coerceIn(0, cityCount - 1)].name,
+                onLeft = { settings.weatherCity = (settings.weatherCity + cityCount - 1) % cityCount },
+                onRight = { settings.weatherCity = (settings.weatherCity + 1) % cityCount },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Temperature unit",
+                value = if (settings.fahrenheit) "°F" else "°C",
+                onLeft = { settings.fahrenheit = !settings.fahrenheit },
+                onRight = { settings.fahrenheit = !settings.fahrenheit },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Show network",
+                value = if (settings.showNetwork) "On" else "Off",
+                onLeft = { settings.showNetwork = !settings.showNetwork },
+                onRight = { settings.showNetwork = !settings.showNetwork },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Wi-Fi name (needs location access)",
+                value = if (locationGranted) "Allowed" else "Allow  ›",
+                onClick = { if (!locationGranted) onRequestLocation() },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Location services (must be on for Wi-Fi name)",
+                value = "Open  ›",
+                onClick = { onSystemIntent(Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
             )
         }
 

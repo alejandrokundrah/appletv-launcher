@@ -60,13 +60,13 @@ class LauncherSettings(context: Context) {
         }
 
     /** Preset id ("aurora", "dusk", ...) or [Wallpapers.CUSTOM]. */
-    var wallpaper by stringPref("wallpaper", "aurora")
+    var wallpaper by stringPref("wallpaper", "mask")
 
     /** Bumped whenever the custom photo file is replaced, so the loader re-runs. */
     var wallpaperRev by intPref("wallpaper_rev", 0)
 
     /** 0f..0.7f black overlay on top of the wallpaper. */
-    var dim by floatPref("dim", 0.18f)
+    var dim by floatPref("dim", 0.10f)
 
     /** Index into [GlassStyle.entries]. */
     var glass by intPref("glass", 1)
@@ -78,13 +78,25 @@ class LauncherSettings(context: Context) {
     var labels by intPref("labels", 0)
 
     /** Tint the backdrop with the focused app's colour. */
-    var accentTint by boolPref("accent_tint", true)
+    var accentTint by boolPref("accent_tint", false)
 
     /** Show apps that are not Android TV apps (phone apps with a normal launcher icon). */
     var showNonTv by boolPref("show_non_tv", true)
 
     /** 0 = follow system, 1 = 12-hour, 2 = 24-hour. */
     var clock by intPref("clock", 0)
+
+    var showWeather by boolPref("show_weather", true)
+
+    /** Index into [WeatherRepo.cities]; 0 = detect by IP address. */
+    var weatherCity by intPref("weather_city", 0)
+
+    var fahrenheit by boolPref("fahrenheit", false)
+
+    var showNetwork by boolPref("show_network", true)
+
+    /** We only ask for the location permission (needed to read the Wi-Fi name) once automatically. */
+    var askedLocation by boolPref("asked_location", false)
 
     var hidden: Set<String> by mutableStateOf(sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet())
         private set
@@ -95,14 +107,18 @@ class LauncherSettings(context: Context) {
     }
 
     fun reset() {
-        wallpaper = "aurora"
-        dim = 0.18f
+        wallpaper = "mask"
+        dim = 0.10f
         glass = 1
         tileSize = 1
         labels = 0
-        accentTint = true
+        accentTint = false
         showNonTv = true
         clock = 0
+        showWeather = true
+        weatherCity = 0
+        fahrenheit = false
+        showNetwork = true
         hidden = emptySet()
         sp.edit().putStringSet("hidden", emptySet<String>()).apply()
     }
