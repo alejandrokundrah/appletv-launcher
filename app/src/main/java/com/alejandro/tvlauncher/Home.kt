@@ -1,6 +1,7 @@
 package com.alejandro.tvlauncher
 
 import android.text.format.DateFormat
+import android.view.SoundEffectConstants
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,11 +63,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -86,10 +91,13 @@ fun HomeContent(
     weather: WeatherInfo?,
     net: NetInfo?,
     homeSignal: Int,
-    onFocusedIndex: (Int) -> Unit,
+    restoreTo: String?,
+    onFocusedApp: (String) -> Unit,
     onLaunch: (AppEntry) -> Unit,
     onLaunchContent: (ContentItem) -> Unit,
     onOptions: (AppEntry) -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenQuick: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     // A launcher must never "go back" to anything.
@@ -97,13 +105,24 @@ fun HomeContent(
 
     val listState = rememberLazyListState()
     val firstTile = remember { FocusRequester() }
+    val requesters = remember { mutableMapOf<String, FocusRequester>() }
+    val view = LocalView.current
+    val lastIndex = remember { intArrayOf(-1) }
 
-    // Grab focus once the row is on screen, and again whenever Home is pressed.
-    LaunchedEffect(apps.isNotEmpty(), homeSignal) {
+    fun click() {
+        if (settings.sounds) view.playSoundEffect(SoundEffectConstants.CLICK)
+    }
+
+    // Grab focus once the row is on screen, and again whenever Home is pressed. After an overlay
+    // (options menu, search, quick settings) closes, [restoreTo] puts focus back on the tile it came from.
+    LaunchedEffect(apps.isNotEmpty(), homeSignal, restoreTo) {
         if (apps.isNotEmpty()) {
-            listState.scrollToItem(0)
+            lastIndex[0] = -1
+            val idx = restoreTo?.let { pkg -> apps.indexOfFirst { it.packageName == pkg } }?.takeIf { it >= 0 } ?: 0
+            listState.scrollToItem(idx)
             withFrameNanos { }
-            runCatching { firstTile.requestFocus() }
+            val target = if (idx == 0) firstTile else requesters[apps[idx].packageName]
+            runCatching { target?.requestFocus() }
         }
     }
 
@@ -130,7 +149,11 @@ fun HomeContent(
             }
             ClockPill(settings, compact)
             Spacer(Modifier.width(14.dp))
-            SettingsButton(onOpenSettings)
+            TopButton(onOpenSearch) { drawSearchIcon() }
+            Spacer(Modifier.width(14.dp))
+            TopButton(onOpenQuick) { drawQuickIcon() }
+            Spacer(Modifier.width(14.dp))
+            TopButton(onOpenSettings) { drawSlidersIcon() }
         }
 
         Spacer(Modifier.weight(1f))
@@ -184,9 +207,23 @@ fun HomeContent(
                     app = app,
                     width = tileWidth,
                     alwaysShowLabel = settings.labels == 1,
-                    requester = if (index == 0) firstTile else null,
-                    onFocused = { onFocusedIndex(index) },
-                    onLaunch = { onLaunch(app) },
+                    pinned = app.packageName in settings.pinned,
+                    ring = if (settings.accentFocus) lerp(app.accent, Color.White, 0.55f) else Color.White,
+                    requester = if (index == 0) firstTile else requesters.getOrPut(app.packageName) { FocusRequester() },
+                    onFocused = {
+                        if (settings.sounds && lastIndex[0] >= 0 && lastIndex[0] != index) {
+                            view.playSoundEffect(
+                                if (index > lastIndex[0]) SoundEffectConstants.NAVIGATION_RIGHT
+                                else SoundEffectConstants.NAVIGATION_LEFT
+                            )
+                        }
+                        lastIndex[0] = index
+                        onFocusedApp(app.packageName)
+                    },
+                    onLaunch = {
+                        click()
+                        onLaunch(app)
+                    },
                     onOptions = { onOptions(app) },
                 )
             }
@@ -202,6 +239,8 @@ private fun AppTile(
     app: AppEntry,
     width: Dp,
     alwaysShowLabel: Boolean,
+    pinned: Boolean,
+    ring: Color,
     requester: FocusRequester?,
     onFocused: () -> Unit,
     onLaunch: () -> Unit,
@@ -229,7 +268,7 @@ private fun AppTile(
             modifier = Modifier
                 .size(width, height)
                 .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
-                .glassLive(corner, emphasis = { glow.value }, rim = false)
+                .glassLive(corner, emphasis = { glow.value }, rim = false, glowColor = ring)
                 .clip(shape)
                 // Order matters: focus observers must sit before the focusable (clickable).
                 .onFocusChanged {
@@ -282,7 +321,7 @@ private fun AppTile(
                         if (a > 0.01f) {
                             val sw = 3.dp.toPx()
                             drawRoundRect(
-                                color = Color.White.copy(alpha = 0.95f * a),
+                                color = ring.copy(alpha = 0.95f * a),
                                 topLeft = Offset(sw / 2, sw / 2),
                                 size = Size(size.width - sw, size.height - sw),
                                 cornerRadius = CornerRadius(corner.toPx() - sw / 2),
@@ -291,6 +330,16 @@ private fun AppTile(
                         }
                     }
             )
+            // Small dot marks pinned apps
+            if (pinned) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(12.dp)
+                        .background(Color.White.copy(alpha = 0.92f), CircleShape)
+                )
+            }
         }
 
         Spacer(Modifier.height(22.dp))
@@ -334,7 +383,14 @@ private fun ContentRow(items: List<ContentItem>, tileWidth: Dp, onOpen: (Content
 }
 
 @Composable
-private fun ContentCard(item: ContentItem, w: Dp, h: Dp, lite: Boolean, onClick: () -> Unit) {
+internal fun ContentCard(
+    item: ContentItem,
+    w: Dp,
+    h: Dp,
+    lite: Boolean,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+) {
     val context = LocalContext.current
     val poster by produceState<ImageBitmap?>(null, item.posterUri) {
         value = item.posterUri?.let { PosterLoader.load(context, it) }
@@ -394,6 +450,12 @@ private fun ContentCard(item: ContentItem, w: Dp, h: Dp, lite: Boolean, onClick:
             item.title, 15.sp, FontWeight.Normal, Color.White.copy(alpha = 0.85f),
             maxLines = 1, modifier = Modifier.fillMaxWidth(), shadow = true,
         )
+        if (subtitle != null) {
+            GText(
+                subtitle, 13.sp, FontWeight.Normal, Color.White.copy(alpha = 0.55f),
+                maxLines = 1, modifier = Modifier.fillMaxWidth(), shadow = true,
+            )
+        }
     }
 }
 
@@ -428,7 +490,7 @@ private fun ClockPill(settings: LauncherSettings, compact: Boolean) {
 }
 
 @Composable
-private fun SettingsButton(onClick: () -> Unit) {
+private fun TopButton(onClick: () -> Unit, icon: DrawScope.() -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val e by animateFloatAsState(if (focused) 1f else 0f, tween(180), label = "gear")
     val shape = RoundedCornerShape(32.dp)
@@ -447,24 +509,55 @@ private fun SettingsButton(onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        // "sliders" icon, drawn by hand so we don't need an icon library
-        Canvas(Modifier.size(28.dp)) {
-            val ys = listOf(0.2f, 0.5f, 0.8f)
-            val knobs = listOf(0.68f, 0.30f, 0.55f)
-            ys.forEachIndexed { i, y ->
-                drawLine(
-                    color = Color.White.copy(alpha = 0.65f),
-                    start = Offset(0f, size.height * y),
-                    end = Offset(size.width, size.height * y),
-                    strokeWidth = 3.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-                drawCircle(
-                    color = Color.White,
-                    radius = 5.5.dp.toPx(),
-                    center = Offset(size.width * knobs[i], size.height * y),
-                )
-            }
-        }
+        // Icons are drawn by hand so we don't need an icon library
+        Canvas(Modifier.size(28.dp)) { icon() }
+    }
+}
+
+/** "Sliders" icon: settings. */
+private fun DrawScope.drawSlidersIcon() {
+    val ys = listOf(0.2f, 0.5f, 0.8f)
+    val knobs = listOf(0.68f, 0.30f, 0.55f)
+    ys.forEachIndexed { i, y ->
+        drawLine(
+            color = Color.White.copy(alpha = 0.65f),
+            start = Offset(0f, size.height * y),
+            end = Offset(size.width, size.height * y),
+            strokeWidth = 3.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+        drawCircle(
+            color = Color.White,
+            radius = 5.5.dp.toPx(),
+            center = Offset(size.width * knobs[i], size.height * y),
+        )
+    }
+}
+
+/** Magnifying glass: search. */
+private fun DrawScope.drawSearchIcon() {
+    val r = size.width * 0.30f
+    val c = Offset(size.width * 0.42f, size.height * 0.42f)
+    drawCircle(color = Color.White, radius = r, center = c, style = Stroke(width = 3.dp.toPx()))
+    drawLine(
+        color = Color.White,
+        start = Offset(c.x + r * 0.72f, c.y + r * 0.72f),
+        end = Offset(size.width * 0.92f, size.height * 0.92f),
+        strokeWidth = 3.5.dp.toPx(),
+        cap = StrokeCap.Round,
+    )
+}
+
+/** Four rounded squares: quick settings. */
+private fun DrawScope.drawQuickIcon() {
+    val gap = size.width * 0.12f
+    val s = (size.width - gap) / 2f
+    for (row in 0..1) for (col in 0..1) {
+        drawRoundRect(
+            color = Color.White.copy(alpha = if (row == 0 && col == 0) 1f else 0.7f),
+            topLeft = Offset(col * (s + gap), row * (s + gap)),
+            size = Size(s, s),
+            cornerRadius = CornerRadius(s * 0.28f),
+        )
     }
 }

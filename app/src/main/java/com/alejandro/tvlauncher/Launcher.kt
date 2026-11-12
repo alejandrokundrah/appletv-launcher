@@ -62,9 +62,30 @@ fun LauncherRoot(
         else -> GpuInfo.isWeakGpu(gpu)
     }
 
+    // Slideshow: cycles through the available wallpapers without overwriting the one you picked.
+    var slideId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(settings.slideshow, settings.wallpaperRev) {
+        slideId = null
+        if (settings.slideshow <= 0) return@LaunchedEffect
+        while (true) {
+            delay(settings.slideshow * 60_000L)
+            val ids = Wallpapers.cycleIds(context)
+            val current = slideId ?: settings.wallpaper
+            slideId = ids[(ids.indexOf(current) + 1) % ids.size]
+        }
+    }
+    val wallpaperId = if (settings.slideshow > 0) slideId ?: settings.wallpaper else settings.wallpaper
+
+    // "Daily photo" wallpaper: fetch today's picture whenever it's selected or Home is pressed.
+    LaunchedEffect(settings.wallpaper, homeSignal) {
+        if (settings.wallpaper == Wallpapers.DAILY && Wallpapers.refreshDaily(context)) {
+            settings.wallpaperRev += 1
+        }
+    }
+
     // Decodes + blurs off the main thread; keeps showing the old wallpaper until the new one is ready.
-    val wallpaper by produceState<Wallpapers.Loaded?>(null, settings.wallpaper, settings.wallpaperRev) {
-        val loaded = runCatching { Wallpapers.load(context, settings.wallpaper) }.getOrNull()
+    val wallpaper by produceState<Wallpapers.Loaded?>(null, wallpaperId, settings.wallpaperRev) {
+        val loaded = runCatching { Wallpapers.load(context, wallpaperId) }.getOrNull()
         if (loaded != null) value = loaded
     }
 
@@ -97,21 +118,50 @@ fun LauncherRoot(
     }
 
     var showSettings by remember { mutableStateOf(false) }
-    var focusedIndex by remember { mutableIntStateOf(0) }
+    var showSearch by remember { mutableStateOf(false) }
+    var showQuick by remember { mutableStateOf(false) }
+    var menuApp by remember { mutableStateOf<AppEntry?>(null) }
+    var focusedPackage by remember { mutableStateOf<String?>(null) }
+    // Which tile gets focus when Home comes back after an overlay (null = the first one).
+    var restoreTo by remember { mutableStateOf<String?>(null) }
     var rootSize by remember { mutableStateOf(IntSize(1920, 1080)) }
 
-    LaunchedEffect(homeSignal) { if (homeSignal > 0) showSettings = false }
+    LaunchedEffect(homeSignal) {
+        if (homeSignal > 0) {
+            showSettings = false
+            showSearch = false
+            showQuick = false
+            menuApp = null
+            restoreTo = null
+        }
+    }
     LaunchedEffect(settingsSignal) { if (settingsSignal > 0) showSettings = true }
 
-    val visible = remember(allApps, settings.hidden, settings.showNonTv) {
-        allApps.filter { it.packageName !in settings.hidden && (settings.showNonTv || it.isTv) }
+    // HDMI / composite inputs, shown as tiles after the apps.
+    val inputs by produceState<List<AppEntry>>(emptyList(), settings.showInputs, homeSignal) {
+        value = if (settings.showInputs) InputRepo.load(context) else emptyList()
     }
-    val safeIndex = focusedIndex.coerceIn(0, (visible.size - 1).coerceAtLeast(0))
-    val focused = visible.getOrNull(safeIndex)
+
+    // Apps in display order: pinned first, then custom order or recently used.
+    val arranged = remember(
+        allApps, settings.hidden, settings.showNonTv, settings.pinned, settings.order,
+        settings.sortMode, settings.launched,
+    ) {
+        settings.arrange(allApps.filter { it.packageName !in settings.hidden && (settings.showNonTv || it.isTv) })
+    }
+    val visible = remember(arranged, inputs) { arranged + inputs }
+    val focused = visible.firstOrNull { it.packageName == focusedPackage } ?: visible.firstOrNull()
+
+    fun closeOverlay() {
+        restoreTo = focusedPackage
+        menuApp = null
+        showSearch = false
+        showQuick = false
+    }
 
     // Titles the focused app has published (e.g. Netflix "Continue watching"). Waits a moment so
     // scrolling quickly across the tiles doesn't fire a query per tile.
-    val focusedPkg = focused?.packageName
+    val focusedPkg = focused?.takeIf { !it.isInput }?.packageName
     val content by produceState<List<ContentItem>>(
         emptyList(), focusedPkg, settings.showContent, tvListingsGranted
     ) {
@@ -202,6 +252,7 @@ fun LauncherRoot(
                 }
             )
 
+            val menu = menuApp
             if (showSettings) {
                 SettingsScreen(
                     settings = settings,
@@ -212,12 +263,48 @@ fun LauncherRoot(
                     lite = lite,
                     homeStatus = homeStatus,
                     onMakeDefault = onMakeDefault,
-                    onClose = { showSettings = false },
+                    onClose = {
+                        restoreTo = focusedPackage
+                        showSettings = false
+                    },
                     onPickWallpaper = onPickWallpaper,
                     onRequestLocation = onRequestLocation,
                     onRequestTvListings = onRequestTvListings,
                     onSystemIntent = onSystemIntent,
                     onLanguageChanged = onLanguageChanged,
+                )
+            } else if (showSearch) {
+                SearchScreen(
+                    apps = arranged,
+                    tvListingsGranted = tvListingsGranted,
+                    lite = lite,
+                    onLaunchApp = { app ->
+                        onLaunch(app)
+                        settings.recordLaunch(app.packageName)
+                    },
+                    onLaunchContent = { item ->
+                        onLaunchContent(item)
+                        settings.recordLaunch(item.packageName)
+                    },
+                    onClose = ::closeOverlay,
+                )
+            } else if (showQuick) {
+                QuickSettingsPanel(
+                    net = net,
+                    onSystemIntent = onSystemIntent,
+                    onOpenLauncherSettings = {
+                        showQuick = false
+                        showSettings = true
+                    },
+                    onClose = ::closeOverlay,
+                )
+            } else if (menu != null) {
+                AppMenu(
+                    app = menu,
+                    settings = settings,
+                    arranged = arranged.map { it.packageName },
+                    onAppInfo = { onOptions(menu) },
+                    onClose = ::closeOverlay,
                 )
             } else {
                 HomeContent(
@@ -228,10 +315,20 @@ fun LauncherRoot(
                     weather = weather,
                     net = net,
                     homeSignal = homeSignal,
-                    onFocusedIndex = { focusedIndex = it },
-                    onLaunch = onLaunch,
-                    onLaunchContent = onLaunchContent,
-                    onOptions = onOptions,
+                    restoreTo = restoreTo,
+                    onFocusedApp = { focusedPackage = it },
+                    onLaunch = { app ->
+                        onLaunch(app)
+                        if (!app.isInput) settings.recordLaunch(app.packageName)
+                    },
+                    onLaunchContent = { item ->
+                        onLaunchContent(item)
+                        settings.recordLaunch(item.packageName)
+                    },
+                    // Long-press OK: pin / move / hide / app info (inputs have none of those)
+                    onOptions = { app -> if (!app.isInput) menuApp = app },
+                    onOpenSearch = { showSearch = true },
+                    onOpenQuick = { showQuick = true },
                     onOpenSettings = { showSettings = true },
                 )
             }

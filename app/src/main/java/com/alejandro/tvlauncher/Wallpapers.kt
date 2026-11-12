@@ -9,6 +9,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object Wallpapers {
 
@@ -30,10 +35,58 @@ object Wallpapers {
 
     fun customFile(context: Context): File = File(context.filesDir, "wallpaper_custom.jpg")
 
+    /** A new photo each day, downloaded from [DAILY_SOURCE] (a free random-photo service, seeded by the date). */
+    const val DAILY = "daily"
+    private const val DAILY_SOURCE = "https://picsum.photos/seed/%s/1920/1080"
+
+    fun dailyFile(context: Context): File = File(context.filesDir, "wallpaper_daily.jpg")
+
     suspend fun load(context: Context, id: String): Loaded = withContext(Dispatchers.Default) {
-        val bmp = (if (id == CUSTOM) decodeFile(customFile(context)) else null)
-            ?: decodeRes(context, (presets.firstOrNull { it.id == id } ?: presets[0]).full)
+        val bmp = bitmapFor(context, id)
         Loaded(bmp.asImageBitmap(), blur(bmp).asImageBitmap())
+    }
+
+    /** Just the picture, without the glass blur. Used by the screensaver. */
+    suspend fun loadFull(context: Context, id: String): ImageBitmap = withContext(Dispatchers.Default) {
+        bitmapFor(context, id).asImageBitmap()
+    }
+
+    private fun bitmapFor(context: Context, id: String): Bitmap =
+        when (id) {
+            CUSTOM -> decodeFile(customFile(context))
+            DAILY -> decodeFile(dailyFile(context))
+            else -> null
+        } ?: decodeRes(context, (presets.firstOrNull { it.id == id } ?: presets[0]).full)
+
+    /** Every wallpaper the slideshow / screensaver can cycle through. */
+    fun cycleIds(context: Context): List<String> =
+        presets.map { it.id } +
+            (if (customFile(context).exists()) listOf(CUSTOM) else emptyList()) +
+            (if (dailyFile(context).exists()) listOf(DAILY) else emptyList())
+
+    /** Downloads today's photo if we don't have it yet. Returns true when the picture changed. */
+    suspend fun refreshDaily(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val sp = context.getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
+        val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+        if (sp.getString("daily_date", "") == today && dailyFile(context).exists()) return@withContext false
+        runCatching {
+            val conn = URL(DAILY_SOURCE.format(today)).openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 15000
+            val tmp = File(context.filesDir, "wallpaper_daily.tmp")
+            conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            // Only replace yesterday's photo if what we got really is an image.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(tmp.absolutePath, bounds)
+            if (bounds.outWidth <= 0) {
+                tmp.delete()
+                false
+            } else {
+                tmp.renameTo(dailyFile(context))
+                sp.edit().putString("daily_date", today).apply()
+                true
+            }
+        }.getOrDefault(false)
     }
 
     private fun decodeRes(context: Context, resId: Int): Bitmap =

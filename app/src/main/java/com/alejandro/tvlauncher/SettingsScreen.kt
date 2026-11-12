@@ -228,6 +228,40 @@ private fun MainPage(
                 onRight = { settings.accentTint = !settings.accentTint },
             )
         }
+        item {
+            SettingRow(
+                title = stringResource(R.string.accent_focus),
+                value = stringResource(if (settings.accentFocus) R.string.on else R.string.off),
+                onLeft = { settings.accentFocus = !settings.accentFocus },
+                onRight = { settings.accentFocus = !settings.accentFocus },
+            )
+        }
+        item {
+            val steps = listOf(0, 1, 5, 15, 60)
+            val idx = steps.indexOf(settings.slideshow).coerceAtLeast(0)
+            SettingRow(
+                title = stringResource(R.string.slideshow),
+                value = if (steps[idx] == 0) stringResource(R.string.off)
+                else stringResource(R.string.slideshow_minutes, steps[idx]),
+                onLeft = { settings.slideshow = steps[(idx + steps.size - 1) % steps.size] },
+                onRight = { settings.slideshow = steps[(idx + 1) % steps.size] },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.sounds),
+                value = stringResource(if (settings.sounds) R.string.on else R.string.off),
+                onLeft = { settings.sounds = !settings.sounds },
+                onRight = { settings.sounds = !settings.sounds },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.screensaver),
+                value = stringResource(R.string.open),
+                onClick = { onSystemIntent(Settings.ACTION_DREAM_SETTINGS) },
+            )
+        }
 
         item {
             SettingRow(
@@ -259,6 +293,22 @@ private fun MainPage(
                 title = stringResource(R.string.allow_titles),
                 value = stringResource(if (tvListingsGranted) R.string.allowed else R.string.allow),
                 onClick = { if (!tvListingsGranted) onRequestTvListings() },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.sort_mode),
+                value = stringResource(if (settings.sortMode == 1) R.string.sort_recent else R.string.sort_custom),
+                onLeft = { settings.sortMode = 1 - settings.sortMode },
+                onRight = { settings.sortMode = 1 - settings.sortMode },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.show_inputs),
+                value = stringResource(if (settings.showInputs) R.string.on else R.string.off),
+                onLeft = { settings.showInputs = !settings.showInputs },
+                onRight = { settings.showInputs = !settings.showInputs },
             )
         }
         item {
@@ -422,7 +472,7 @@ private fun SectionHeader(text: String) {
  * OK either activates [onClick] or steps the value forward.
  */
 @Composable
-private fun SettingRow(
+internal fun SettingRow(
     title: String,
     value: String?,
     requester: FocusRequester? = null,
@@ -520,6 +570,19 @@ private fun WallpaperRow(settings: LauncherSettings, onPick: () -> Unit) {
                             )
                         )
                     }
+                }
+            }
+            item(key = "daily") {
+                Thumb(
+                    selected = settings.wallpaper == Wallpapers.DAILY,
+                    label = stringResource(R.string.wp_daily),
+                    onClick = { settings.wallpaper = Wallpapers.DAILY },
+                ) {
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.linearGradient(listOf(Color(0xFF2F5F8A), Color(0xFF14202E)))
+                        )
+                    )
                 }
             }
             item(key = "pick") {

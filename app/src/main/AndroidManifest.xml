@@ -40,5 +40,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Screensaver: cycles the launcher's wallpapers with a clock (pick it in Android's screensaver settings) -->
+        <service
+            android:name=".AmbientDream"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher"
+            android:label="@string/dream_name"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>
