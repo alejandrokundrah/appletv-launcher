@@ -1,5 +1,6 @@
 package com.alejandro.tvlauncher
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
@@ -38,10 +39,10 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
 /** How "milky" the glass is. */
-enum class GlassStyle(val label: String, val tint: Color, val tintAlpha: Float, val sheen: Float) {
-    Clear("Clear", Color.White, 0.08f, 0.20f),
-    Frosted("Frosted", Color.White, 0.18f, 0.26f),
-    Dark("Dark", Color.Black, 0.32f, 0.14f),
+enum class GlassStyle(@StringRes val labelRes: Int, val tint: Color, val tintAlpha: Float, val sheen: Float) {
+    Clear(R.string.glass_clear, Color.White, 0.08f, 0.20f),
+    Frosted(R.string.glass_frosted, Color.White, 0.18f, 0.26f),
+    Dark(R.string.glass_dark, Color.Black, 0.32f, 0.14f),
 }
 
 /**

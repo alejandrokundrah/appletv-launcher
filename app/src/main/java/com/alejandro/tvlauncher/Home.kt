@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -138,7 +139,7 @@ fun HomeContent(
         Column(Modifier.padding(start = 80.dp, end = 80.dp)) {
             if (focused == null) {
                 GText(
-                    if (apps.isEmpty()) "No apps to show" else "Loading apps…",
+                    stringResource(if (apps.isEmpty()) R.string.home_no_apps else R.string.home_loading),
                     30.sp, FontWeight.Medium, Color.White.copy(alpha = 0.7f), shadow = true,
                 )
             } else {
@@ -154,7 +155,7 @@ fun HomeContent(
                 }
                 Spacer(Modifier.height(6.dp))
                 GText(
-                    "Press OK to open   ·   Hold OK for app info   ·   Menu for settings",
+                    stringResource(R.string.home_hint),
                     19.sp, FontWeight.Normal, Color.White.copy(alpha = 0.62f), shadow = true,
                 )
             }
@@ -316,7 +317,7 @@ private fun ContentRow(items: List<ContentItem>, tileWidth: Dp, onOpen: (Content
     val lite = LocalGlass.current.lite
     Column(Modifier.padding(top = 10.dp)) {
         GText(
-            if (items.any { it.watched }) "Continue watching" else "Recommended",
+            stringResource(if (items.any { it.watched }) R.string.row_continue else R.string.row_recommended),
             20.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.85f),
             modifier = Modifier.padding(start = 80.dp, bottom = 6.dp),
             shadow = true,

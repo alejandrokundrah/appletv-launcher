@@ -49,6 +49,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ fun SettingsScreen(
     onRequestLocation: () -> Unit,
     onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
+    onLanguageChanged: () -> Unit,
 ) {
     var page by remember { mutableStateOf(Page.Main) }
     val first = remember(page) { FocusRequester() }
@@ -98,11 +100,11 @@ fun SettingsScreen(
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 GText(
-                    if (page == Page.Main) "Settings" else "Hidden apps",
+                    stringResource(if (page == Page.Main) R.string.settings_title else R.string.hidden_apps_title),
                     36.sp, FontWeight.Bold, Color.White,
                 )
                 Spacer(Modifier.weight(1f))
-                GText("Back to close", 17.sp, FontWeight.Normal, Color.White.copy(alpha = 0.55f))
+                GText(stringResource(R.string.back_to_close), 17.sp, FontWeight.Normal, Color.White.copy(alpha = 0.55f))
             }
             Spacer(Modifier.height(16.dp))
 
@@ -120,6 +122,7 @@ fun SettingsScreen(
                     onRequestLocation = onRequestLocation,
                     onRequestTvListings = onRequestTvListings,
                     onSystemIntent = onSystemIntent,
+                    onLanguageChanged = onLanguageChanged,
                     onOpenHidden = { page = Page.Hidden },
                 )
             } else {
@@ -143,6 +146,7 @@ private fun MainPage(
     onRequestLocation: () -> Unit,
     onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
+    onLanguageChanged: () -> Unit,
     onOpenHidden: () -> Unit,
 ) {
     val glassCount = GlassStyle.entries.size
@@ -153,13 +157,35 @@ private fun MainPage(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        item { SectionHeader("APPEARANCE") }
+        item {
+            val codes = listOf("", "en", "fr")
+            val names = listOf(
+                stringResource(R.string.lang_system),
+                stringResource(R.string.lang_english),
+                stringResource(R.string.lang_french),
+            )
+            val idx = codes.indexOf(settings.language).coerceAtLeast(0)
+            SettingRow(
+                title = stringResource(R.string.lang_title),
+                value = names[idx],
+                requester = first,
+                onLeft = {
+                    settings.language = codes[(idx + codes.size - 1) % codes.size]
+                    onLanguageChanged()
+                },
+                onRight = {
+                    settings.language = codes[(idx + 1) % codes.size]
+                    onLanguageChanged()
+                },
+            )
+        }
+
+        item { SectionHeader(stringResource(R.string.sec_appearance)) }
 
         item {
             SettingRow(
-                title = "Glass style",
-                value = GlassStyle.entries[settings.glass.coerceIn(0, glassCount - 1)].label,
-                requester = first,
+                title = stringResource(R.string.glass_style),
+                value = stringResource(GlassStyle.entries[settings.glass.coerceIn(0, glassCount - 1)].labelRes),
                 onLeft = { settings.glass = (settings.glass + glassCount - 1) % glassCount },
                 onRight = { settings.glass = (settings.glass + 1) % glassCount },
             )
@@ -167,7 +193,7 @@ private fun MainPage(
         item { WallpaperRow(settings, onPickWallpaper) }
         item {
             SettingRow(
-                title = "Wallpaper dimming",
+                title = stringResource(R.string.wallpaper_dim),
                 value = "${(settings.dim * 100).roundToInt()}%",
                 onLeft = { settings.dim = (settings.dim - 0.05f).coerceAtLeast(0f) },
                 onRight = { settings.dim = (settings.dim + 0.05f).coerceAtMost(0.7f) },
@@ -175,24 +201,28 @@ private fun MainPage(
         }
         item {
             SettingRow(
-                title = "Tile size",
-                value = listOf("Small", "Medium", "Large")[settings.tileSize.coerceIn(0, 2)],
+                title = stringResource(R.string.tile_size),
+                value = listOf(
+                    stringResource(R.string.size_small),
+                    stringResource(R.string.size_medium),
+                    stringResource(R.string.size_large),
+                )[settings.tileSize.coerceIn(0, 2)],
                 onLeft = { settings.tileSize = (settings.tileSize + 2) % 3 },
                 onRight = { settings.tileSize = (settings.tileSize + 1) % 3 },
             )
         }
         item {
             SettingRow(
-                title = "App names",
-                value = if (settings.labels == 1) "Always" else "Focused only",
+                title = stringResource(R.string.app_names),
+                value = stringResource(if (settings.labels == 1) R.string.names_always else R.string.names_focused),
                 onLeft = { settings.labels = 1 - settings.labels },
                 onRight = { settings.labels = 1 - settings.labels },
             )
         }
         item {
             SettingRow(
-                title = "Backdrop glow from focused app",
-                value = if (settings.accentTint) "On" else "Off",
+                title = stringResource(R.string.backdrop_glow),
+                value = stringResource(if (settings.accentTint) R.string.on else R.string.off),
                 onLeft = { settings.accentTint = !settings.accentTint },
                 onRight = { settings.accentTint = !settings.accentTint },
             )
@@ -200,79 +230,85 @@ private fun MainPage(
 
         item {
             SettingRow(
-                title = "Performance mode" + (gpuName?.let { " ($it)" } ?: ""),
-                value = when (settings.performance) {
-                    1 -> "Lighter"
-                    2 -> "Full glass"
-                    else -> if (lite) "Auto: lighter" else "Auto: full"
-                },
+                title = stringResource(R.string.perf_mode) + (gpuName?.let { " ($it)" } ?: ""),
+                value = stringResource(
+                    when (settings.performance) {
+                        1 -> R.string.perf_lighter
+                        2 -> R.string.perf_full
+                        else -> if (lite) R.string.perf_auto_lighter else R.string.perf_auto_full
+                    }
+                ),
                 onLeft = { settings.performance = (settings.performance + 2) % 3 },
                 onRight = { settings.performance = (settings.performance + 1) % 3 },
             )
         }
 
-        item { SectionHeader("HOME") }
+        item { SectionHeader(stringResource(R.string.sec_home)) }
 
         item {
             SettingRow(
-                title = "Show watched / recent titles",
-                value = if (settings.showContent) "On" else "Off",
+                title = stringResource(R.string.show_content),
+                value = stringResource(if (settings.showContent) R.string.on else R.string.off),
                 onLeft = { settings.showContent = !settings.showContent },
                 onRight = { settings.showContent = !settings.showContent },
             )
         }
         item {
             SettingRow(
-                title = "Allow reading app titles (needed for the row above)",
-                value = if (tvListingsGranted) "Allowed" else "Allow  ›",
+                title = stringResource(R.string.allow_titles),
+                value = stringResource(if (tvListingsGranted) R.string.allowed else R.string.allow),
                 onClick = { if (!tvListingsGranted) onRequestTvListings() },
             )
         }
         item {
             SettingRow(
-                title = "Show non-TV apps",
-                value = if (settings.showNonTv) "On" else "Off",
+                title = stringResource(R.string.show_non_tv),
+                value = stringResource(if (settings.showNonTv) R.string.on else R.string.off),
                 onLeft = { settings.showNonTv = !settings.showNonTv },
                 onRight = { settings.showNonTv = !settings.showNonTv },
             )
         }
         item {
             SettingRow(
-                title = "Clock format",
-                value = listOf("System", "12-hour", "24-hour")[settings.clock.coerceIn(0, 2)],
+                title = stringResource(R.string.clock_format),
+                value = listOf(
+                    stringResource(R.string.clock_system),
+                    stringResource(R.string.clock_12),
+                    stringResource(R.string.clock_24),
+                )[settings.clock.coerceIn(0, 2)],
                 onLeft = { settings.clock = (settings.clock + 2) % 3 },
                 onRight = { settings.clock = (settings.clock + 1) % 3 },
             )
         }
         item {
             SettingRow(
-                title = "Hidden apps",
-                value = "${settings.hidden.size} hidden  ›",
+                title = stringResource(R.string.hidden_apps),
+                value = stringResource(R.string.hidden_count, settings.hidden.size),
                 onClick = onOpenHidden,
             )
         }
 
-        item { SectionHeader("STATUS BAR") }
+        item { SectionHeader(stringResource(R.string.sec_status)) }
 
         item {
             SettingRow(
-                title = "Show weather",
-                value = if (settings.showWeather) "On" else "Off",
+                title = stringResource(R.string.show_weather),
+                value = stringResource(if (settings.showWeather) R.string.on else R.string.off),
                 onLeft = { settings.showWeather = !settings.showWeather },
                 onRight = { settings.showWeather = !settings.showWeather },
             )
         }
         item {
             SettingRow(
-                title = "Weather location",
-                value = WeatherRepo.cities[settings.weatherCity.coerceIn(0, cityCount - 1)].name,
+                title = stringResource(R.string.weather_location),
+                value = stringResource(WeatherRepo.cities[settings.weatherCity.coerceIn(0, cityCount - 1)].nameRes),
                 onLeft = { settings.weatherCity = (settings.weatherCity + cityCount - 1) % cityCount },
                 onRight = { settings.weatherCity = (settings.weatherCity + 1) % cityCount },
             )
         }
         item {
             SettingRow(
-                title = "Temperature unit",
+                title = stringResource(R.string.temp_unit),
                 value = if (settings.fahrenheit) "°F" else "°C",
                 onLeft = { settings.fahrenheit = !settings.fahrenheit },
                 onRight = { settings.fahrenheit = !settings.fahrenheit },
@@ -280,32 +316,32 @@ private fun MainPage(
         }
         item {
             SettingRow(
-                title = "Show network",
-                value = if (settings.showNetwork) "On" else "Off",
+                title = stringResource(R.string.show_network),
+                value = stringResource(if (settings.showNetwork) R.string.on else R.string.off),
                 onLeft = { settings.showNetwork = !settings.showNetwork },
                 onRight = { settings.showNetwork = !settings.showNetwork },
             )
         }
         item {
             SettingRow(
-                title = "Wi-Fi name (needs location access)",
-                value = if (locationGranted) "Allowed" else "Allow  ›",
+                title = stringResource(R.string.wifi_name),
+                value = stringResource(if (locationGranted) R.string.allowed else R.string.allow),
                 onClick = { if (!locationGranted) onRequestLocation() },
             )
         }
         item {
             SettingRow(
-                title = "Location services (must be on for Wi-Fi name)",
-                value = "Open  ›",
+                title = stringResource(R.string.location_services),
+                value = stringResource(R.string.open),
                 onClick = { onSystemIntent(Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
             )
         }
 
-        item { SectionHeader("SYSTEM") }
+        item { SectionHeader(stringResource(R.string.sec_system)) }
 
         item {
             SettingRow(
-                title = "Default launcher (Home button)",
+                title = stringResource(R.string.default_launcher),
                 value = homeStatus,
                 onClick = onMakeDefault,
             )
@@ -313,29 +349,29 @@ private fun MainPage(
 
         item {
             SettingRow(
-                title = "Wi-Fi",
-                value = "Open  ›",
+                title = stringResource(R.string.net_wifi),
+                value = stringResource(R.string.open),
                 onClick = { onSystemIntent(Settings.ACTION_WIFI_SETTINGS) },
             )
         }
         item {
             SettingRow(
-                title = "Android settings",
-                value = "Open  ›",
+                title = stringResource(R.string.android_settings),
+                value = stringResource(R.string.open),
                 onClick = { onSystemIntent(Settings.ACTION_SETTINGS) },
             )
         }
         item {
             SettingRow(
-                title = "Default home app",
-                value = "Open  ›",
+                title = stringResource(R.string.default_home_app),
+                value = stringResource(R.string.open),
                 onClick = { onSystemIntent(Settings.ACTION_HOME_SETTINGS) },
             )
         }
         item {
             SettingRow(
-                title = "Reset launcher settings",
-                value = "Reset",
+                title = stringResource(R.string.reset_settings),
+                value = stringResource(R.string.reset),
                 onClick = { settings.reset() },
             )
         }
@@ -353,7 +389,7 @@ private fun HiddenPage(settings: LauncherSettings, apps: List<AppEntry>, first: 
             val hidden = app.packageName in settings.hidden
             SettingRow(
                 title = app.label,
-                value = if (hidden) "Hidden" else "Visible",
+                value = stringResource(if (hidden) R.string.state_hidden else R.string.state_visible),
                 requester = if (app === apps.firstOrNull()) first else null,
                 leading = {
                     Image(
@@ -448,7 +484,7 @@ private fun WallpaperRow(settings: LauncherSettings, onPick: () -> Unit) {
 
     Column(Modifier.fillMaxWidth()) {
         GText(
-            "Wallpaper",
+            stringResource(R.string.wallpaper),
             20.sp, FontWeight.Medium, Color.White.copy(alpha = 0.85f),
             modifier = Modifier.padding(start = 6.dp, top = 6.dp),
         )
@@ -459,12 +495,12 @@ private fun WallpaperRow(settings: LauncherSettings, onPick: () -> Unit) {
             items(Wallpapers.presets, key = { it.id }) { p ->
                 Thumb(
                     selected = settings.wallpaper == p.id,
-                    label = p.name,
+                    label = stringResource(p.nameRes),
                     onClick = { settings.wallpaper = p.id },
                 ) {
                     Image(
                         painter = painterResource(p.thumb),
-                        contentDescription = p.name,
+                        contentDescription = stringResource(p.nameRes),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -474,7 +510,7 @@ private fun WallpaperRow(settings: LauncherSettings, onPick: () -> Unit) {
                 item(key = "custom") {
                     Thumb(
                         selected = settings.wallpaper == Wallpapers.CUSTOM,
-                        label = "Your photo",
+                        label = stringResource(R.string.wp_your_photo),
                         onClick = { settings.wallpaper = Wallpapers.CUSTOM },
                     ) {
                         Box(
@@ -486,7 +522,7 @@ private fun WallpaperRow(settings: LauncherSettings, onPick: () -> Unit) {
                 }
             }
             item(key = "pick") {
-                Thumb(selected = false, label = "Choose photo…", onClick = onPick) {
+                Thumb(selected = false, label = stringResource(R.string.wp_choose), onClick = onPick) {
                     Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.06f)))
                     GText("+", 40.sp, FontWeight.Light, Color.White.copy(alpha = 0.8f), modifier = Modifier.align(Alignment.Center))
                 }

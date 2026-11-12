@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.os.ConfigurationCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -31,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -69,9 +72,36 @@ class MainActivity : ComponentActivity() {
         if (uri != null) importWallpaper(uri)
     }
 
+    /**
+     * Applies the language picked in the launcher's own settings ("" = follow the system), so the
+     * launcher can be French even when the box itself is set to English.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val lang = newBase.getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
+            .getString("language", "") ?: ""
+        val config = Configuration(newBase.resources.configuration)
+        if (lang.isEmpty()) {
+            // Undo any earlier override in this process so dates etc. follow the system again.
+            ConfigurationCompat.getLocales(config).get(0)?.let { Locale.setDefault(it) }
+            super.attachBaseContext(newBase)
+            return
+        }
+        val locale = Locale.forLanguageTag(lang)
+        Locale.setDefault(locale)
+        config.setLocale(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = LauncherSettings(this)
+
+        // After a language change the activity restarts; come back to the settings screen.
+        val prefs = getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("reopen_settings", false)) {
+            prefs.edit().putBoolean("reopen_settings", false).apply()
+            settingsSignal = 1
+        }
 
         // Edge-to-edge, system bars hidden (immersive)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -117,6 +147,7 @@ class MainActivity : ComponentActivity() {
                 onRequestLocation = ::requestLocation,
                 onRequestTvListings = ::requestTvListings,
                 onSystemIntent = ::openSystem,
+                onLanguageChanged = ::languageChanged,
             )
         }
     }
@@ -155,9 +186,9 @@ class MainActivity : ComponentActivity() {
         val pkg = packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
         isDefaultHome = pkg == packageName
         homeStatus = when {
-            pkg == null -> "Unknown"
-            pkg == packageName -> "This launcher"
-            pkg == "android" -> "Not set (system will ask)"
+            pkg == null -> getString(R.string.home_unknown)
+            pkg == packageName -> getString(R.string.home_this)
+            pkg == "android" -> getString(R.string.home_not_set)
             else -> {
                 val label = runCatching {
                     packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
@@ -170,7 +201,7 @@ class MainActivity : ComponentActivity() {
     /** Asks Android to make this launcher the Home app (the official way on Android 10+). */
     private fun makeDefaultHome() {
         if (isDefaultHome) {
-            Toast.makeText(this, "This is already the default launcher", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.toast_already_default), Toast.LENGTH_SHORT).show()
             return
         }
         if (Build.VERSION.SDK_INT >= 29) {
@@ -187,10 +218,17 @@ class MainActivity : ComponentActivity() {
         if (!opened) {
             Toast.makeText(
                 this,
-                "Open Android settings > Apps > Default apps > Home app and pick \"Home\".",
+                getString(R.string.toast_home_howto, getString(R.string.app_name)),
                 Toast.LENGTH_LONG,
             ).show()
         }
+    }
+
+    /** The language is applied when the activity is created, so restart it and reopen settings. */
+    private fun languageChanged() {
+        getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
+            .edit().putBoolean("reopen_settings", true).apply()
+        recreate()
     }
 
     private fun hasLocationPermission(): Boolean =
@@ -226,7 +264,7 @@ class MainActivity : ComponentActivity() {
             val fallback = packageManager.getLeanbackLaunchIntentForPackage(item.packageName)
                 ?: packageManager.getLaunchIntentForPackage(item.packageName)
             runCatching { startActivity(fallback?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                .onFailure { Toast.makeText(this, "Can't open ${item.title}", Toast.LENGTH_SHORT).show() }
+                .onFailure { Toast.makeText(this, getString(R.string.toast_cant_open, item.title), Toast.LENGTH_SHORT).show() }
         }
     }
 
@@ -244,7 +282,7 @@ class MainActivity : ComponentActivity() {
 
     private fun launch(app: AppEntry) {
         runCatching { startActivity(app.launchIntent) }
-            .onFailure { Toast.makeText(this, "Can't open ${app.label}", Toast.LENGTH_SHORT).show() }
+            .onFailure { Toast.makeText(this, getString(R.string.toast_cant_open, app.label), Toast.LENGTH_SHORT).show() }
     }
 
     private fun openOwnAppSettings() {
@@ -267,7 +305,7 @@ class MainActivity : ComponentActivity() {
 
     private fun openSystem(action: String) {
         runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure { Toast.makeText(this, "This box doesn't have that screen", Toast.LENGTH_SHORT).show() }
+            .onFailure { Toast.makeText(this, getString(R.string.toast_no_screen), Toast.LENGTH_SHORT).show() }
     }
 
     private fun pickWallpaper() {
@@ -275,7 +313,7 @@ class MainActivity : ComponentActivity() {
             .onFailure {
                 Toast.makeText(
                     this,
-                    "No photo picker found on this box. Install a file manager app and try again.",
+                    getString(R.string.toast_no_picker),
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -304,7 +342,7 @@ class MainActivity : ComponentActivity() {
                 settings.wallpaper = Wallpapers.CUSTOM
                 settings.wallpaperRev += 1
             } else {
-                Toast.makeText(this@MainActivity, "Couldn't read that image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, getString(R.string.toast_bad_image), Toast.LENGTH_SHORT).show()
             }
         }
     }

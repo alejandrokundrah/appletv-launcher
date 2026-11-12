@@ -50,6 +50,7 @@ fun LauncherRoot(
     onRequestLocation: () -> Unit,
     onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
+    onLanguageChanged: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -216,6 +217,7 @@ fun LauncherRoot(
                     onRequestLocation = onRequestLocation,
                     onRequestTvListings = onRequestTvListings,
                     onSystemIntent = onSystemIntent,
+                    onLanguageChanged = onLanguageChanged,
                 )
             } else {
                 HomeContent(

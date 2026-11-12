@@ -86,6 +86,9 @@ class LauncherSettings(context: Context) {
     /** 0 = follow system, 1 = 12-hour, 2 = 24-hour. */
     var clock by intPref("clock", 0)
 
+    /** "" = follow the system language, otherwise a language code such as "en" or "fr". */
+    var language by stringPref("language", "")
+
     var showWeather by boolPref("show_weather", true)
 
     /** Index into [WeatherRepo.cities]; 0 = detect by IP address. */

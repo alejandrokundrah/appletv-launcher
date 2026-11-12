@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +29,13 @@ import kotlin.math.sin
 
 @Composable
 fun WeatherPill(w: WeatherInfo, compact: Boolean, modifier: Modifier = Modifier) {
+    val label = stringResource(w.labelRes)
+    val place = if (w.cityIndex > 0) {
+        stringResource(WeatherRepo.cities[w.cityIndex.coerceIn(0, WeatherRepo.cities.size - 1)].nameRes)
+    } else {
+        w.place
+    }
+    val highLow = stringResource(R.string.wx_hi_lo, w.high, w.low)
     Row(
         modifier.glass(28.dp).padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -39,12 +47,12 @@ fun WeatherPill(w: WeatherInfo, compact: Boolean, modifier: Modifier = Modifier)
             Spacer(Modifier.width(14.dp))
             Column {
                 GText(
-                    if (w.place.isBlank()) w.label else w.place,
+                    if (place.isBlank()) label else place,
                     16.sp, FontWeight.SemiBold, Color.White, maxLines = 1,
                     modifier = Modifier.widthIn(max = 200.dp),
                 )
                 GText(
-                    "${w.label}  ·  H ${w.high}°  L ${w.low}°",
+                    "$label  ·  $highLow",
                     13.sp, FontWeight.Normal, Color.White.copy(alpha = 0.7f), maxLines = 1,
                 )
             }
@@ -54,6 +62,12 @@ fun WeatherPill(w: WeatherInfo, compact: Boolean, modifier: Modifier = Modifier)
 
 @Composable
 fun NetworkPill(n: NetInfo, compact: Boolean, modifier: Modifier = Modifier) {
+    val title = when (n.kind) {
+        NetKind.Wifi -> n.name ?: stringResource(R.string.net_wifi)
+        NetKind.Ethernet -> stringResource(R.string.net_ethernet)
+        NetKind.Offline -> stringResource(R.string.net_offline)
+        NetKind.Other -> n.name ?: stringResource(R.string.net_connected)
+    }
     Row(
         modifier.glass(28.dp).padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -62,7 +76,7 @@ fun NetworkPill(n: NetInfo, compact: Boolean, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(12.dp))
         Column {
             GText(
-                n.name, 18.sp, FontWeight.SemiBold, Color.White, maxLines = 1,
+                title, 18.sp, FontWeight.SemiBold, Color.White, maxLines = 1,
                 modifier = Modifier.widthIn(max = 200.dp),
             )
             if (!compact && n.ip != null) {

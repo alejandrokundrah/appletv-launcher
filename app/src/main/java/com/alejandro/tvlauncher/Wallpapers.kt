@@ -3,6 +3,7 @@ package com.alejandro.tvlauncher
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
@@ -13,15 +14,15 @@ object Wallpapers {
 
     const val CUSTOM = "custom"
 
-    class Preset(val id: String, val name: String, val full: Int, val thumb: Int)
+    class Preset(val id: String, @StringRes val nameRes: Int, val full: Int, val thumb: Int)
 
     val presets = listOf(
-        Preset("mask", "Mask", R.drawable.wp_mask, R.drawable.wpt_mask),
-        Preset("aurora", "Aurora", R.drawable.wp_aurora, R.drawable.wpt_aurora),
-        Preset("dusk", "Dusk", R.drawable.wp_dusk, R.drawable.wpt_dusk),
-        Preset("ocean", "Ocean", R.drawable.wp_ocean, R.drawable.wpt_ocean),
-        Preset("ember", "Ember", R.drawable.wp_ember, R.drawable.wpt_ember),
-        Preset("graphite", "Graphite", R.drawable.wp_graphite, R.drawable.wpt_graphite),
+        Preset("mask", R.string.wp_mask, R.drawable.wp_mask, R.drawable.wpt_mask),
+        Preset("aurora", R.string.wp_aurora, R.drawable.wp_aurora, R.drawable.wpt_aurora),
+        Preset("dusk", R.string.wp_dusk, R.drawable.wp_dusk, R.drawable.wpt_dusk),
+        Preset("ocean", R.string.wp_ocean, R.drawable.wp_ocean, R.drawable.wpt_ocean),
+        Preset("ember", R.string.wp_ember, R.drawable.wp_ember, R.drawable.wpt_ember),
+        Preset("graphite", R.string.wp_graphite, R.drawable.wp_graphite, R.drawable.wpt_graphite),
     )
 
     /** [full] is the wallpaper; [blurred] is a tiny, pre-blurred copy used behind glass surfaces. */
