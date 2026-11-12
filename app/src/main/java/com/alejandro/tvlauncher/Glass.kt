@@ -82,13 +82,14 @@ fun Modifier.glassLive(
     emphasis: () -> Float,
     darken: Float = 0f,
     rim: Boolean = true,
+    glowColor: Color = Color.White,
 ): Modifier = composed {
     val env = LocalGlass.current
     var origin by remember { mutableStateOf(Offset.Zero) }
     this
         .onGloballyPositioned { origin = it.positionInRoot() }
         .drawBehind {
-            drawGlassBody(env, origin, corner.toPx(), emphasis(), darken)
+            drawGlassBody(env, origin, corner.toPx(), emphasis(), darken, glowColor)
             if (rim) drawGlassRim(corner.toPx(), env.lite)
         }
 }
@@ -102,7 +103,14 @@ fun Modifier.glassRim(corner: Dp): Modifier = composed {
 private fun roundedPath(w: Float, h: Float, r: Float): Path =
     Path().apply { addRoundRect(RoundRect(0f, 0f, w, h, CornerRadius(r, r))) }
 
-private fun DrawScope.drawGlassBody(env: GlassEnv, origin: Offset, r: Float, e: Float, darken: Float) {
+private fun DrawScope.drawGlassBody(
+    env: GlassEnv,
+    origin: Offset,
+    r: Float,
+    e: Float,
+    darken: Float,
+    glowColor: Color = Color.White,
+) {
     val w = size.width
     val h = size.height
     val style = env.style
@@ -115,7 +123,7 @@ private fun DrawScope.drawGlassBody(env: GlassEnv, origin: Offset, r: Float, e: 
         for (i in 1..rings) {
             val grow = i * step
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.16f * e * (1f - i / (rings + 1f))),
+                color = glowColor.copy(alpha = 0.16f * e * (1f - i / (rings + 1f))),
                 topLeft = Offset(-grow, -grow),
                 size = Size(w + 2 * grow, h + 2 * grow),
                 cornerRadius = CornerRadius(r + grow),

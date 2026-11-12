@@ -110,12 +110,96 @@ class LauncherSettings(context: Context) {
     /** We only ask for the location permission (needed to read the Wi-Fi name) once automatically. */
     var askedLocation by boolPref("asked_location", false)
 
+    /** 0 = custom order (A-Z until you move something), 1 = recently used first. Pinned apps always lead. */
+    var sortMode by intPref("sort_mode", 0)
+
+    /** Show HDMI / composite inputs as tiles at the end of the row. */
+    var showInputs by boolPref("show_inputs", true)
+
+    /** Minutes between wallpaper changes; 0 = off. Cycles through the built-in and custom wallpapers. */
+    var slideshow by intPref("slideshow", 0)
+
+    /** Tint the focus ring and glow with the focused app's colour. */
+    var accentFocus by boolPref("accent_focus", true)
+
+    /** Play the system's navigation / click sounds while moving around (follows the system sound-effects setting). */
+    var sounds by boolPref("sounds", false)
+
     var hidden: Set<String> by mutableStateOf(sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet())
         private set
 
     fun toggleHidden(packageName: String) {
         hidden = if (packageName in hidden) hidden - packageName else hidden + packageName
         sp.edit().putStringSet("hidden", hidden.toSet()).apply()
+    }
+
+    // ---- app order, pins and launch history -------------------------------------------------
+
+    private fun readList(key: String): List<String> =
+        (sp.getString(key, "") ?: "").split(',').filter { it.isNotBlank() }
+
+    /** Pinned apps, in the order they were pinned / moved. They always come first. */
+    var pinned: List<String> by mutableStateOf(readList("pinned"))
+        private set
+
+    /** The custom order of the unpinned apps. Apps not listed here follow alphabetically. */
+    var order: List<String> by mutableStateOf(readList("order"))
+        private set
+
+    /** When each app was last opened from here (millis), for "recently used first". */
+    var launched: Map<String, Long> by mutableStateOf(
+        (sp.getString("launched", "") ?: "").split(';').mapNotNull {
+            val p = it.split('=')
+            if (p.size == 2) p[1].toLongOrNull()?.let { t -> p[0] to t } else null
+        }.toMap()
+    )
+        private set
+
+    fun recordLaunch(packageName: String) {
+        // Keep only the 40 most recent so the preference stays small.
+        launched = (launched + (packageName to System.currentTimeMillis()))
+            .entries.sortedByDescending { it.value }.take(40).associate { it.key to it.value }
+        sp.edit().putString("launched", launched.entries.joinToString(";") { "${it.key}=${it.value}" }).apply()
+    }
+
+    fun togglePinned(packageName: String) {
+        pinned = if (packageName in pinned) pinned - packageName else pinned + packageName
+        sp.edit().putString("pinned", pinned.joinToString(",")).apply()
+    }
+
+    /**
+     * Moves [packageName] one place left (-1) or right (+1) inside [arranged], the list exactly as
+     * shown on screen. Pinned and unpinned apps stay in their own group.
+     */
+    fun move(packageName: String, delta: Int, arranged: List<String>) {
+        val from = arranged.indexOf(packageName)
+        val to = from + delta
+        if (from < 0 || to !in arranged.indices) return
+        if ((arranged[to] in pinned) != (packageName in pinned)) return
+        val list = arranged.toMutableList()
+        java.util.Collections.swap(list, from, to)
+        if (sortMode == 1) sortMode = 0
+        val pinnedSet = pinned.toSet()
+        pinned = list.filter { it in pinnedSet }
+        val others = list.filter { it !in pinnedSet }
+        order = others + order.filter { it !in others && it !in pinnedSet }
+        sp.edit().putString("pinned", pinned.joinToString(",")).putString("order", order.joinToString(",")).apply()
+    }
+
+    /** The apps in the order they should appear: pinned first, then by custom order or recent use. */
+    fun arrange(apps: List<AppEntry>): List<AppEntry> {
+        val position = order.withIndex().associate { it.value to it.index }
+        val base = if (sortMode == 1) {
+            apps.sortedWith(
+                compareByDescending<AppEntry> { launched[it.packageName] ?: 0L }
+                    .thenBy { apps.indexOf(it) }
+            )
+        } else {
+            apps.sortedBy { position[it.packageName] ?: (order.size + apps.indexOf(it)) }
+        }
+        val pinOrder = pinned.withIndex().associate { it.value to it.index }
+        val (pins, rest) = base.partition { it.packageName in pinOrder }
+        return pins.sortedBy { pinOrder[it.packageName] } + rest
     }
 
     fun reset() {
@@ -133,7 +217,18 @@ class LauncherSettings(context: Context) {
         showNetwork = true
         performance = 0
         showContent = true
+        sortMode = 0
+        showInputs = true
+        slideshow = 0
+        accentFocus = true
+        sounds = false
+        pinned = emptyList()
+        order = emptyList()
         hidden = emptySet()
-        sp.edit().putStringSet("hidden", emptySet<String>()).apply()
+        sp.edit()
+            .putStringSet("hidden", emptySet<String>())
+            .putString("pinned", "")
+            .putString("order", "")
+            .apply()
     }
 }

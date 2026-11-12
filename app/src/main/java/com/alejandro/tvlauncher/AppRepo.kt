@@ -22,6 +22,8 @@ data class AppEntry(
     /** Dominant colour of the artwork, used to tint the backdrop. */
     val accent: Color,
     val isTv: Boolean,
+    /** True for HDMI / composite input tiles (see [InputRepo]); they have no app behind them. */
+    val isInput: Boolean = false,
 )
 
 object AppRepo {

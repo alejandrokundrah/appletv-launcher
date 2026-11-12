@@ -22,6 +22,12 @@ An Apple TV-style home screen (launcher) for generic Android TV boxes.
 | Tile size | Small / Medium / Large |
 | App names | Focused only / Always |
 | Backdrop glow from focused app | On / Off |
+| Focus colour from app | Tints the focus ring and glow with the focused app's colour |
+| Wallpaper slideshow | Off / every 1, 5, 15 or 60 minutes; cycles the built-in, custom and daily wallpapers |
+| Navigation sounds | Plays the system's navigation / click sounds (follows Android's sound-effects setting) |
+| Screensaver | Opens Android's screensaver settings; pick "Home screensaver" there |
+| App order | Custom (A-Z until you move something) or recently used first; pinned apps always lead |
+| Show HDMI / TV inputs | HDMI / composite inputs as tiles at the end of the row |
 | Performance mode | Auto / Lighter / Full glass (Auto switches older Mali GPUs to the lighter look) |
 | Show watched / recent titles | On / Off: a row above the tiles with the focused app's "Continue watching" / recommended titles |
 | Allow reading app titles | grants `READ_TV_LISTINGS`, which the row above needs |
@@ -59,7 +65,17 @@ If the box keeps its old launcher, set it under Settings > Apps > Default apps >
 | `SettingsScreen.kt` | the settings pages |
 | `AppRepo.kt` | loads installed apps, icons and banners |
 | `ContentRepo.kt` | reads the titles an app publishes to Android TV's provider, plus the poster loader |
+| `Overlays.kt` | long-press menu (pin / move / hide / info), search screen, quick-settings panel |
+| `InputRepo.kt` | HDMI / composite inputs from `TvInputManager`, as tiles |
+| `AmbientDream.kt` | the screensaver (`DreamService`) |
 | `GpuInfo.kt` | reads the GPU name so weak GPUs can get the lighter look |
+
+## Using the new features
+
+- **Long-press OK on a tile**: pin to the front, move left / right, hide, or open the app's info.
+- **Search** (magnifier, top right): app names plus every title the installed apps publish to Android TV. With nothing typed it lists what you can continue watching across apps.
+- **Quick settings** (four-squares button): Wi-Fi, network, Bluetooth, display, sound, date & time, accessibility.
+- **Wallpaper > Daily photo** downloads a new picture each day from picsum.photos (change `DAILY_SOURCE` in `Wallpapers.kt` to use another source).
 
 ## Status bar notes
 

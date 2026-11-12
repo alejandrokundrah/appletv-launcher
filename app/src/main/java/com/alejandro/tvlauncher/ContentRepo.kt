@@ -52,7 +52,39 @@ object ContentRepo {
                 .take(MAX_ITEMS)
         }
 
-    private fun query(context: Context, uri: String, packageName: String, watched: Boolean): List<ContentItem> {
+    private var allCache: List<ContentItem> = emptyList()
+    private var allCacheAt = 0L
+
+    /**
+     * Every title every app has published, "Continue watching" entries first (most recent first).
+     * Cached for 30 seconds so typing in the search box doesn't hit the provider on every key.
+     */
+    suspend fun loadAll(context: Context): List<ContentItem> = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < 26) return@withContext emptyList()
+        val now = System.currentTimeMillis()
+        if (now - allCacheAt < 30_000L && allCache.isNotEmpty()) return@withContext allCache
+        val watchNext = query(context, "content://android.media.tv/watch_next_program", null, true)
+        val previews = query(context, "content://android.media.tv/preview_program", null, false)
+        val seen = HashSet<String>()
+        val all = (watchNext.sortedByDescending { it.lastEngagement } + previews)
+            .filter { seen.add(it.packageName + "|" + it.title.lowercase()) }
+        allCache = all
+        allCacheAt = now
+        all
+    }
+
+    /** Titles containing every word of [text] (case-insensitive). An empty query returns [items] as is. */
+    fun search(items: List<ContentItem>, text: String): List<ContentItem> {
+        val words = text.lowercase().split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty()) return items
+        return items.filter { item ->
+            val t = item.title.lowercase()
+            words.all { it in t }
+        }
+    }
+
+    /** [packageName] = null returns the rows of every app. */
+    private fun query(context: Context, uri: String, packageName: String?, watched: Boolean): List<ContentItem> {
         val out = ArrayList<ContentItem>()
         // The provider may refuse (no permission) or the table may be missing on this box: that's just "nothing to show".
         runCatching {
@@ -68,12 +100,14 @@ object ContentRepo {
                 val iThumb = c.getColumnIndex(THUMB)
                 val iIntent = c.getColumnIndex(INTENT)
                 val iEngaged = c.getColumnIndex(ENGAGED)
-                while (c.moveToNext() && out.size < 200) {
-                    if (iPkg < 0 || c.getString(iPkg) != packageName) continue
+                while (c.moveToNext() && out.size < 600) {
+                    if (iPkg < 0) continue
+                    val rowPackage = c.getString(iPkg) ?: continue
+                    if (packageName != null && rowPackage != packageName) continue
                     val title = if (iTitle >= 0) c.getString(iTitle) else null
                     if (title.isNullOrBlank()) continue
                     out += ContentItem(
-                        packageName = packageName,
+                        packageName = rowPackage,
                         title = title,
                         posterUri = (if (iPoster >= 0) c.getString(iPoster) else null)
                             ?: (if (iThumb >= 0) c.getString(iThumb) else null),
