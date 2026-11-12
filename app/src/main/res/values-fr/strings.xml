@@ -5,6 +5,7 @@
     <string name="lang_system">Langue du système</string>
     <string name="lang_english">English</string>
     <string name="lang_french">Français</string>
+    <string name="lang_spanish">Español</string>
     <string name="settings_title">Paramètres</string>
     <string name="hidden_apps_title">Applications masquées</string>
     <string name="back_to_close">Retour pour fermer</string>

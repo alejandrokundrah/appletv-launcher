@@ -5,6 +5,7 @@
     <string name="lang_system">System default</string>
     <string name="lang_english">English</string>
     <string name="lang_french">Français</string>
+    <string name="lang_spanish">Español</string>
     <string name="settings_title">Settings</string>
     <string name="hidden_apps_title">Hidden apps</string>
     <string name="back_to_close">Back to close</string>

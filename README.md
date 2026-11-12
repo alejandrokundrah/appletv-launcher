@@ -15,7 +15,7 @@ An Apple TV-style home screen (launcher) for generic Android TV boxes.
 
 | Setting | Options |
 | --- | --- |
-| Language | System default / English / Français (applies instantly, independent of the box's own language) |
+| Language | System default / English / Français / Español (applies instantly, independent of the box's own language) |
 | Glass style | Clear / Frosted / Dark |
 | Wallpaper | 6 presets, or "Choose photo…" from storage |
 | Wallpaper dimming | 0 to 70% |
@@ -91,7 +91,7 @@ you have to uninstall first, which also forgets the default-launcher choice. Re-
 
 ## Languages
 
-English and French are included. The launcher follows the box's language by default; **Settings > Language** (the
+English, French and Spanish are included. The launcher follows the box's language by default; **Settings > Language** (the
 first row) overrides it. All text lives in `app/src/main/res/values/strings.xml` (English) and
 `values-fr/strings.xml` (French). To add another language, copy `values/strings.xml` to `values-xx/strings.xml`
 (e.g. `values-ar`, `values-pt`), translate the text, and add the language code to the `codes`/`names` lists in the

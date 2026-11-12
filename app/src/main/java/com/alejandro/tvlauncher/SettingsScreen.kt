@@ -158,11 +158,12 @@ private fun MainPage(
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item {
-            val codes = listOf("", "en", "fr")
+            val codes = listOf("", "en", "fr", "es")
             val names = listOf(
                 stringResource(R.string.lang_system),
                 stringResource(R.string.lang_english),
                 stringResource(R.string.lang_french),
+                stringResource(R.string.lang_spanish),
             )
             val idx = codes.indexOf(settings.language).coerceAtLeast(0)
             SettingRow(

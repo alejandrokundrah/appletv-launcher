@@ -67,7 +67,8 @@ object WeatherRepo {
             val lon: Double
             if (idx == 0) {
                 // ipwho.is can answer with the city name in French
-                val ipUrl = if (Locale.getDefault().language == "fr") "https://ipwho.is/?lang=fr" else "https://ipwho.is/"
+                val lang = Locale.getDefault().language
+                val ipUrl = if (lang == "fr" || lang == "es") "https://ipwho.is/?lang=$lang" else "https://ipwho.is/"
                 val j = JSONObject(httpGet(ipUrl))
                 if (!j.optBoolean("success", false)) return@runCatching null
                 lat = j.getDouble("latitude")
