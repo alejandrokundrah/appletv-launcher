@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var homeSignal by mutableIntStateOf(0)
     private var settingsSignal by mutableIntStateOf(0)
     private var locationGranted by mutableStateOf(false)
+    private var tvListingsGranted by mutableStateOf(false)
     private var homeStatus by mutableStateOf("")
     private var isDefaultHome by mutableStateOf(false)
 
@@ -50,6 +51,13 @@ class MainActivity : ComponentActivity() {
     // Android only shows the Wi-Fi network name to apps that hold a location permission.
     private val askLocation = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         locationGranted = granted
+        // Ask for the next permission only now, so two dialogs never fight for the screen.
+        maybeAskTvListings()
+    }
+
+    // Lets the launcher read "Continue watching" / recommended titles that apps publish to Android TV.
+    private val askTvListings = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        tvListingsGranted = granted
     }
 
     // Result of the system "set as home app" dialog (Android 10+).
@@ -84,9 +92,12 @@ class MainActivity : ComponentActivity() {
 
         refreshHomeStatus()
         locationGranted = hasLocationPermission()
+        tvListingsGranted = hasTvListingsPermission()
         if (!locationGranted && !settings.askedLocation) {
             settings.askedLocation = true
-            requestLocation()
+            requestLocation() // its result callback asks for the TV-listings permission next
+        } else {
+            maybeAskTvListings()
         }
 
         setContent {
@@ -96,12 +107,15 @@ class MainActivity : ComponentActivity() {
                 homeSignal = homeSignal,
                 settingsSignal = settingsSignal,
                 locationGranted = locationGranted,
+                tvListingsGranted = tvListingsGranted,
                 homeStatus = homeStatus,
                 onMakeDefault = ::makeDefaultHome,
                 onLaunch = ::launch,
+                onLaunchContent = ::launchContent,
                 onOptions = ::openAppInfo,
                 onPickWallpaper = ::pickWallpaper,
                 onRequestLocation = ::requestLocation,
+                onRequestTvListings = ::requestTvListings,
                 onSystemIntent = ::openSystem,
             )
         }
@@ -126,6 +140,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // The user may have changed the permission in system settings.
         locationGranted = hasLocationPermission()
+        tvListingsGranted = hasTvListingsPermission()
         refreshHomeStatus()
     }
 
@@ -181,6 +196,39 @@ class MainActivity : ComponentActivity() {
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun hasTvListingsPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, "android.permission.READ_TV_LISTINGS") ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** First launch only: ask once, automatically. Settings has a row to ask again. */
+    private fun maybeAskTvListings() {
+        if (!tvListingsGranted && !settings.askedTvListings) {
+            settings.askedTvListings = true
+            requestTvListings()
+        }
+    }
+
+    private fun requestTvListings() {
+        runCatching { askTvListings.launch("android.permission.READ_TV_LISTINGS") }
+            .onFailure { openOwnAppSettings() }
+    }
+
+    /** Opens a title from the content row inside its app, falling back to just opening the app. */
+    private fun launchContent(item: ContentItem) {
+        val opened = runCatching {
+            val uri = item.intentUri ?: error("no intent")
+            val intent = Intent.parseUri(uri, Intent.URI_INTENT_SCHEME)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            startActivity(intent)
+        }.isSuccess
+        if (!opened) {
+            val fallback = packageManager.getLeanbackLaunchIntentForPackage(item.packageName)
+                ?: packageManager.getLaunchIntentForPackage(item.packageName)
+            runCatching { startActivity(fallback?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Toast.makeText(this, "Can't open ${item.title}", Toast.LENGTH_SHORT).show() }
+        }
+    }
 
     private fun requestLocation() {
         runCatching { askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION) }

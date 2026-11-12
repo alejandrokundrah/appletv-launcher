@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,8 @@ class GlassEnv(
     val width: Float,
     val height: Float,
     val style: GlassStyle,
+    /** Lite mode for weak GPUs (e.g. older Mali): flat tint instead of the blurred image, no glow rings or gradients. */
+    val lite: Boolean = false,
 )
 
 val LocalGlass = compositionLocalOf { GlassEnv(null, 1920f, 1080f, GlassStyle.Frosted) }
@@ -67,19 +70,33 @@ fun Modifier.glass(
     emphasis: Float = 0f,
     darken: Float = 0f,
     rim: Boolean = true,
+): Modifier = glassLive(corner, { emphasis }, darken, rim)
+
+/**
+ * Same as [glass], but [emphasis] is read while drawing. Pass `{ animatedState.value }` for animated
+ * focus so the surface redraws each frame without recomposing the whole tile.
+ */
+fun Modifier.glassLive(
+    corner: Dp,
+    emphasis: () -> Float,
+    darken: Float = 0f,
+    rim: Boolean = true,
 ): Modifier = composed {
     val env = LocalGlass.current
     var origin by remember { mutableStateOf(Offset.Zero) }
     this
         .onGloballyPositioned { origin = it.positionInRoot() }
         .drawBehind {
-            drawGlassBody(env, origin, corner.toPx(), emphasis, darken)
-            if (rim) drawGlassRim(corner.toPx())
+            drawGlassBody(env, origin, corner.toPx(), emphasis(), darken)
+            if (rim) drawGlassRim(corner.toPx(), env.lite)
         }
 }
 
 /** Just the light-catching edge. Put it on a top overlay so artwork underneath doesn't hide it. */
-fun Modifier.glassRim(corner: Dp): Modifier = drawBehind { drawGlassRim(corner.toPx()) }
+fun Modifier.glassRim(corner: Dp): Modifier = composed {
+    val lite = LocalGlass.current.lite
+    drawBehind { drawGlassRim(corner.toPx(), lite) }
+}
 
 private fun roundedPath(w: Float, h: Float, r: Float): Path =
     Path().apply { addRoundRect(RoundRect(0f, 0f, w, h, CornerRadius(r, r))) }
@@ -88,31 +105,52 @@ private fun DrawScope.drawGlassBody(env: GlassEnv, origin: Offset, r: Float, e: 
     val w = size.width
     val h = size.height
     val style = env.style
-    val path = roundedPath(w, h, r)
 
-    // Soft outer glow when emphasised (focus)
+    // Soft outer glow when emphasised (focus). 4 wider rings look the same as the old 8 thin ones,
+    // and lite mode draws a single ring.
     if (e > 0.01f) {
-        for (i in 1..8) {
-            val grow = i * 2.6.dp.toPx()
+        val rings = if (env.lite) 1 else 4
+        val step = 5.2.dp.toPx()
+        for (i in 1..rings) {
+            val grow = i * step
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.11f * e * (1f - i / 9f)),
+                color = Color.White.copy(alpha = 0.16f * e * (1f - i / (rings + 1f))),
                 topLeft = Offset(-grow, -grow),
                 size = Size(w + 2 * grow, h + 2 * grow),
                 cornerRadius = CornerRadius(r + grow),
-                style = Stroke(width = 2.6.dp.toPx()),
+                style = Stroke(width = step),
             )
         }
     }
 
+    if (env.lite) {
+        // Weak-GPU path: one rounded fill (no clip layer, no image, no gradients).
+        val base = if (style.tint == Color.Black) 0.50f else 0.30f
+        drawRoundRect(
+            color = style.tint.copy(alpha = (base + 0.14f * e + darken).coerceAtMost(0.9f)),
+            cornerRadius = CornerRadius(r),
+        )
+        return
+    }
+
+    val path = roundedPath(w, h, r)
     clipPath(path) {
         env.blurred?.let { bmp ->
-            translate(-origin.x, -origin.y) {
-                drawImage(
-                    image = bmp,
-                    dstSize = IntSize(env.width.roundToInt(), env.height.roundToInt()),
-                    filterQuality = FilterQuality.High,
-                )
-            }
+            // Only sample the part of the small blurred image that sits behind this surface,
+            // instead of scaling the whole thing to screen size for every tile.
+            val sx = bmp.width / env.width
+            val sy = bmp.height / env.height
+            val srcX = (origin.x * sx).toInt().coerceIn(0, bmp.width - 1)
+            val srcY = (origin.y * sy).toInt().coerceIn(0, bmp.height - 1)
+            val srcW = (w * sx).toInt().coerceIn(1, bmp.width - srcX)
+            val srcH = (h * sy).toInt().coerceIn(1, bmp.height - srcY)
+            drawImage(
+                image = bmp,
+                srcOffset = IntOffset(srcX, srcY),
+                srcSize = IntSize(srcW, srcH),
+                dstSize = IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+                filterQuality = FilterQuality.Low,
+            )
         }
         drawRect(style.tint.copy(alpha = (style.tintAlpha + 0.14f * e).coerceAtMost(0.9f)))
         if (darken > 0f) drawRect(Color.Black.copy(alpha = darken))
@@ -146,9 +184,17 @@ private fun DrawScope.drawGlassBody(env: GlassEnv, origin: Offset, r: Float, e: 
     }
 }
 
-private fun DrawScope.drawGlassRim(r: Float) {
+private fun DrawScope.drawGlassRim(r: Float, lite: Boolean = false) {
     val w = size.width
     val h = size.height
+    if (lite) {
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.35f),
+            cornerRadius = CornerRadius(r),
+            style = Stroke(width = 1.4.dp.toPx()),
+        )
+        return
+    }
     drawPath(
         path = roundedPath(w, h, r),
         brush = Brush.linearGradient(
@@ -194,7 +240,8 @@ fun GText(
             fontWeight = weight,
             color = color,
             textAlign = align,
-            shadow = if (shadow) Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 3f), 14f) else null,
+            // Blurred text shadows are costly on weak GPUs; a tighter blur looks the same at TV distance.
+            shadow = if (shadow) Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 3f), 7f) else null,
         ),
     )
 }

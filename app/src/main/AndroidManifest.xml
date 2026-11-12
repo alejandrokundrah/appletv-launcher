@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Android only reveals the Wi-Fi network name to apps that hold a location permission -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Lets the launcher read the titles other apps publish to Android TV ("Continue watching" etc.) -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
 
     <application
         android:allowBackup="true"

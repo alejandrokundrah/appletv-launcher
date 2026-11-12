@@ -3,7 +3,10 @@ package com.alejandro.tvlauncher
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -39,19 +42,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -70,12 +80,14 @@ import java.util.Locale
 fun HomeContent(
     apps: List<AppEntry>,
     focused: AppEntry?,
+    content: List<ContentItem>,
     settings: LauncherSettings,
     weather: WeatherInfo?,
     net: NetInfo?,
     homeSignal: Int,
     onFocusedIndex: (Int) -> Unit,
     onLaunch: (AppEntry) -> Unit,
+    onLaunchContent: (ContentItem) -> Unit,
     onOptions: (AppEntry) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -148,6 +160,16 @@ fun HomeContent(
             }
         }
 
+        // What you've watched / what the focused app is recommending (e.g. Netflix "Continue watching").
+        // It sits above the tiles; press Up from a tile to move into it, Down to come back.
+        AnimatedVisibility(
+            visible = content.isNotEmpty(),
+            enter = fadeIn(tween(250)) + expandVertically(tween(250)),
+            exit = fadeOut(tween(150)) + shrinkVertically(tween(150)),
+        ) {
+            ContentRow(content, tileWidth, onLaunchContent)
+        }
+
         Spacer(Modifier.height(14.dp))
 
         LazyRow(
@@ -185,12 +207,15 @@ private fun AppTile(
     onOptions: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
+    val lite = LocalGlass.current.lite
+    // Kept as State (not `by`) and only read inside draw / layer lambdas below, so a focus animation
+    // redraws the tile each frame without recomposing it. That was a lot of work on weak GPUs/CPUs.
+    val scale = animateFloatAsState(
         targetValue = if (focused) 1.12f else 1f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = if (lite) tween(160) else spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
         label = "scale",
     )
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "glow")
+    val glow = animateFloatAsState(if (focused) 1f else 0f, tween(if (lite) 120 else 220), label = "glow")
     val height = width * 9 / 16
     val corner = 24.dp
     val shape = RoundedCornerShape(corner)
@@ -202,8 +227,8 @@ private fun AppTile(
         Box(
             modifier = Modifier
                 .size(width, height)
-                .graphicsLayer { scaleX = scale; scaleY = scale }
-                .glass(corner, emphasis = glow, rim = false)
+                .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
+                .glassLive(corner, emphasis = { glow.value }, rim = false)
                 .clip(shape)
                 // Order matters: focus observers must sit before the focusable (clickable).
                 .onFocusChanged {
@@ -231,25 +256,39 @@ private fun AppTile(
                         .clip(RoundedCornerShape(height * 0.12f)),
                 )
             }
-            // Glossy top highlight over artwork
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(height * 0.5f)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.White.copy(alpha = 0.16f), Color.Transparent)
+            // Glossy top highlight over artwork (skipped in lite mode: one less blended layer per tile)
+            if (!lite) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(height * 0.5f)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.White.copy(alpha = 0.16f), Color.Transparent)
+                            )
                         )
-                    )
-            )
+                )
+            }
             // Light-catching rim on top of everything
             Box(Modifier.fillMaxSize().glassRim(corner))
-            // Focus ring
+            // Focus ring (alpha read while drawing)
             Box(
                 Modifier
                     .fillMaxSize()
-                    .border(3.dp, Color.White.copy(alpha = 0.95f * glow), shape)
+                    .drawBehind {
+                        val a = glow.value
+                        if (a > 0.01f) {
+                            val sw = 3.dp.toPx()
+                            drawRoundRect(
+                                color = Color.White.copy(alpha = 0.95f * a),
+                                topLeft = Offset(sw / 2, sw / 2),
+                                size = Size(size.width - sw, size.height - sw),
+                                cornerRadius = CornerRadius(corner.toPx() - sw / 2),
+                                style = Stroke(width = sw),
+                            )
+                        }
+                    }
             )
         }
 
@@ -258,11 +297,101 @@ private fun AppTile(
             text = app.label,
             size = 19.sp,
             weight = FontWeight.Medium,
-            color = Color.White.copy(alpha = if (alwaysShowLabel) 0.9f else 0.95f * glow),
+            color = Color.White.copy(alpha = if (alwaysShowLabel) 0.9f else 0.95f),
             maxLines = 1,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = if (alwaysShowLabel) 1f else glow.value },
             align = TextAlign.Center,
             shadow = true,
+        )
+    }
+}
+
+/** Row of poster cards for the focused app. OK on a card opens that title in the app. */
+@Composable
+private fun ContentRow(items: List<ContentItem>, tileWidth: Dp, onOpen: (ContentItem) -> Unit) {
+    val cardW = tileWidth * 0.85f
+    val cardH = cardW * 9 / 16
+    val lite = LocalGlass.current.lite
+    Column(Modifier.padding(top = 10.dp)) {
+        GText(
+            if (items.any { it.watched }) "Continue watching" else "Recommended",
+            20.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.padding(start = 80.dp, bottom = 6.dp),
+            shadow = true,
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 80.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            itemsIndexed(items, key = { i, c -> "${c.title}#$i" }) { _, item ->
+                ContentCard(item, cardW, cardH, lite) { onOpen(item) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContentCard(item: ContentItem, w: Dp, h: Dp, lite: Boolean, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val poster by produceState<ImageBitmap?>(null, item.posterUri) {
+        value = item.posterUri?.let { PosterLoader.load(context, it) }
+    }
+    var focused by remember { mutableStateOf(false) }
+    val glow = animateFloatAsState(if (focused) 1f else 0f, tween(if (lite) 100 else 180), label = "card")
+    val corner = 14.dp
+
+    Column(Modifier.width(w)) {
+        Box(
+            modifier = Modifier
+                .size(w, h)
+                .graphicsLayer {
+                    val s = 1f + 0.08f * glow.value
+                    scaleX = s
+                    scaleY = s
+                }
+                .clip(RoundedCornerShape(corner))
+                .background(Color.White.copy(alpha = 0.10f))
+                .onFocusChanged { focused = it.isFocused }
+                .clickable(onClick = onClick)
+                .drawWithContent {
+                    drawContent()
+                    val a = glow.value
+                    if (a > 0.01f) {
+                        val sw = 3.dp.toPx()
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.95f * a),
+                            topLeft = Offset(sw / 2, sw / 2),
+                            size = Size(size.width - sw, size.height - sw),
+                            cornerRadius = CornerRadius(corner.toPx() - sw / 2),
+                            style = Stroke(width = sw),
+                        )
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            val p = poster
+            if (p != null) {
+                Image(
+                    bitmap = p,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                // No artwork (or still loading): show the title so the card is still useful.
+                GText(
+                    item.title, 16.sp, FontWeight.Medium, Color.White.copy(alpha = 0.9f),
+                    maxLines = 3, align = TextAlign.Center,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        GText(
+            item.title, 15.sp, FontWeight.Normal, Color.White.copy(alpha = 0.85f),
+            maxLines = 1, modifier = Modifier.fillMaxWidth(), shadow = true,
         )
     }
 }

@@ -17,8 +17,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -38,15 +40,26 @@ fun LauncherRoot(
     homeSignal: Int,
     settingsSignal: Int,
     locationGranted: Boolean,
+    tvListingsGranted: Boolean,
     homeStatus: String,
     onMakeDefault: () -> Unit,
     onLaunch: (AppEntry) -> Unit,
+    onLaunchContent: (ContentItem) -> Unit,
     onOptions: (AppEntry) -> Unit,
     onPickWallpaper: () -> Unit,
     onRequestLocation: () -> Unit,
+    onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
 ) {
     val context = LocalContext.current
+
+    // Weak GPUs (older Mali etc.) get a lighter look. Detected once, off the main thread.
+    val gpu by produceState<String?>(null) { value = withContext(Dispatchers.Default) { GpuInfo.renderer() } }
+    val lite = when (settings.performance) {
+        1 -> true
+        2 -> false
+        else -> GpuInfo.isWeakGpu(gpu)
+    }
 
     // Decodes + blurs off the main thread; keeps showing the old wallpaper until the new one is ready.
     val wallpaper by produceState<Wallpapers.Loaded?>(null, settings.wallpaper, settings.wallpaperRev) {
@@ -95,9 +108,23 @@ fun LauncherRoot(
     val safeIndex = focusedIndex.coerceIn(0, (visible.size - 1).coerceAtLeast(0))
     val focused = visible.getOrNull(safeIndex)
 
+    // Titles the focused app has published (e.g. Netflix "Continue watching"). Waits a moment so
+    // scrolling quickly across the tiles doesn't fire a query per tile.
+    val focusedPkg = focused?.packageName
+    val content by produceState<List<ContentItem>>(
+        emptyList(), focusedPkg, settings.showContent, tvListingsGranted
+    ) {
+        if (!settings.showContent || focusedPkg == null) {
+            value = emptyList()
+            return@produceState
+        }
+        delay(250)
+        value = ContentRepo.load(context, focusedPkg)
+    }
+
     val accent by animateColorAsState(
         targetValue = focused?.accent ?: Color(0xFF2A2A44),
-        animationSpec = tween(700),
+        animationSpec = tween(if (lite) 300 else 700),
         label = "accent",
     )
     val style = GlassStyle.entries[settings.glass.coerceIn(0, GlassStyle.entries.size - 1)]
@@ -108,6 +135,7 @@ fun LauncherRoot(
             width = rootSize.width.toFloat(),
             height = rootSize.height.toFloat(),
             style = style,
+            lite = lite,
         )
     ) {
         Box(
@@ -116,47 +144,61 @@ fun LauncherRoot(
                 .background(Color(0xFF07070C))
                 .onSizeChanged { rootSize = it }
         ) {
-            // 1. wallpaper
-            Crossfade(
-                targetState = wallpaper?.full,
-                animationSpec = tween(700),
-                label = "wallpaper",
-            ) { img ->
+            // 1. wallpaper (a crossfade keeps two full-screen images alive, so lite mode just swaps)
+            if (lite) {
+                val img = wallpaper?.full
                 if (img != null) {
                     Image(
                         bitmap = img,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.Low,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else {
-                    Box(Modifier.fillMaxSize())
+                }
+            } else {
+                Crossfade(
+                    targetState = wallpaper?.full,
+                    animationSpec = tween(700),
+                    label = "wallpaper",
+                ) { img ->
+                    if (img != null) {
+                        Image(
+                            bitmap = img,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize())
+                    }
                 }
             }
 
-            // 2. dimming
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = settings.dim)))
-
-            // 3. colour from the focused app
-            if (settings.accentTint) {
-                Box(
-                    Modifier.fillMaxSize().background(
+            // 2-4. Dimming, the focused app's colour and the bottom scrim used to be three
+            // full-screen layers. They are now one draw pass, and the animated accent colour is read
+            // while drawing, so a focus change redraws this layer instead of recomposing the screen.
+            val dim = settings.dim
+            val tint = settings.accentTint
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    if (dim > 0f) drawRect(Color.Black.copy(alpha = dim))
+                    if (tint) {
+                        drawRect(
+                            Brush.verticalGradient(
+                                0f to accent.copy(alpha = 0.50f),
+                                0.65f to Color.Transparent,
+                            )
+                        )
+                    }
+                    // scrim so text at the bottom stays readable on any wallpaper
+                    drawRect(
                         Brush.verticalGradient(
-                            0f to accent.copy(alpha = 0.50f),
-                            0.65f to Color.Transparent,
+                            0.40f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.55f),
                         )
                     )
-                )
-            }
-
-            // 4. scrim so text at the bottom stays readable on any wallpaper
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        0.40f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.55f),
-                    )
-                )
+                }
             )
 
             if (showSettings) {
@@ -164,23 +206,29 @@ fun LauncherRoot(
                     settings = settings,
                     allApps = allApps,
                     locationGranted = locationGranted,
+                    tvListingsGranted = tvListingsGranted,
+                    gpuName = gpu,
+                    lite = lite,
                     homeStatus = homeStatus,
                     onMakeDefault = onMakeDefault,
                     onClose = { showSettings = false },
                     onPickWallpaper = onPickWallpaper,
                     onRequestLocation = onRequestLocation,
+                    onRequestTvListings = onRequestTvListings,
                     onSystemIntent = onSystemIntent,
                 )
             } else {
                 HomeContent(
                     apps = visible,
                     focused = focused,
+                    content = content,
                     settings = settings,
                     weather = weather,
                     net = net,
                     homeSignal = homeSignal,
                     onFocusedIndex = { focusedIndex = it },
                     onLaunch = onLaunch,
+                    onLaunchContent = onLaunchContent,
                     onOptions = onOptions,
                     onOpenSettings = { showSettings = true },
                 )

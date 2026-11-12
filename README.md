@@ -21,6 +21,9 @@ An Apple TV-style home screen (launcher) for generic Android TV boxes.
 | Tile size | Small / Medium / Large |
 | App names | Focused only / Always |
 | Backdrop glow from focused app | On / Off |
+| Performance mode | Auto / Lighter / Full glass (Auto switches older Mali GPUs to the lighter look) |
+| Show watched / recent titles | On / Off: a row above the tiles with the focused app's "Continue watching" / recommended titles |
+| Allow reading app titles | grants `READ_TV_LISTINGS`, which the row above needs |
 | Show non-TV apps | On / Off |
 | Clock format | System / 12-hour / 24-hour |
 | Hidden apps | choose which apps to hide |
@@ -54,6 +57,8 @@ If the box keeps its old launcher, set it under Settings > Apps > Default apps >
 | `Home.kt` | tiles, hero title, clock, settings button |
 | `SettingsScreen.kt` | the settings pages |
 | `AppRepo.kt` | loads installed apps, icons and banners |
+| `ContentRepo.kt` | reads the titles an app publishes to Android TV's provider, plus the poster loader |
+| `GpuInfo.kt` | reads the GPU name so weak GPUs can get the lighter look |
 
 ## Status bar notes
 

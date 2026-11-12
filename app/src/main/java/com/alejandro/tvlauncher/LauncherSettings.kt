@@ -95,6 +95,15 @@ class LauncherSettings(context: Context) {
 
     var showNetwork by boolPref("show_network", true)
 
+    /** 0 = auto (lighter look on weak GPUs), 1 = always lighter, 2 = always full glass. */
+    var performance by intPref("performance", 0)
+
+    /** Show "continue watching" / recent titles from the focused app (e.g. Netflix) above the tiles. */
+    var showContent by boolPref("show_content", true)
+
+    /** We only ask for the TV-listings permission (needed to read other apps' titles) once automatically. */
+    var askedTvListings by boolPref("asked_tv_listings", false)
+
     /** We only ask for the location permission (needed to read the Wi-Fi name) once automatically. */
     var askedLocation by boolPref("asked_location", false)
 
@@ -119,6 +128,8 @@ class LauncherSettings(context: Context) {
         weatherCity = 0
         fahrenheit = false
         showNetwork = true
+        performance = 0
+        showContent = true
         hidden = emptySet()
         sp.edit().putStringSet("hidden", emptySet<String>()).apply()
     }

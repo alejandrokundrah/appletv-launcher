@@ -62,11 +62,15 @@ fun SettingsScreen(
     settings: LauncherSettings,
     allApps: List<AppEntry>,
     locationGranted: Boolean,
+    tvListingsGranted: Boolean,
+    gpuName: String?,
+    lite: Boolean,
     homeStatus: String,
     onMakeDefault: () -> Unit,
     onClose: () -> Unit,
     onPickWallpaper: () -> Unit,
     onRequestLocation: () -> Unit,
+    onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
 ) {
     var page by remember { mutableStateOf(Page.Main) }
@@ -107,10 +111,14 @@ fun SettingsScreen(
                     settings = settings,
                     first = first,
                     locationGranted = locationGranted,
+                    tvListingsGranted = tvListingsGranted,
+                    gpuName = gpuName,
+                    lite = lite,
                     homeStatus = homeStatus,
                     onMakeDefault = onMakeDefault,
                     onPickWallpaper = onPickWallpaper,
                     onRequestLocation = onRequestLocation,
+                    onRequestTvListings = onRequestTvListings,
                     onSystemIntent = onSystemIntent,
                     onOpenHidden = { page = Page.Hidden },
                 )
@@ -126,10 +134,14 @@ private fun MainPage(
     settings: LauncherSettings,
     first: FocusRequester,
     locationGranted: Boolean,
+    tvListingsGranted: Boolean,
+    gpuName: String?,
+    lite: Boolean,
     homeStatus: String,
     onMakeDefault: () -> Unit,
     onPickWallpaper: () -> Unit,
     onRequestLocation: () -> Unit,
+    onRequestTvListings: () -> Unit,
     onSystemIntent: (String) -> Unit,
     onOpenHidden: () -> Unit,
 ) {
@@ -186,8 +198,36 @@ private fun MainPage(
             )
         }
 
+        item {
+            SettingRow(
+                title = "Performance mode" + (gpuName?.let { " ($it)" } ?: ""),
+                value = when (settings.performance) {
+                    1 -> "Lighter"
+                    2 -> "Full glass"
+                    else -> if (lite) "Auto: lighter" else "Auto: full"
+                },
+                onLeft = { settings.performance = (settings.performance + 2) % 3 },
+                onRight = { settings.performance = (settings.performance + 1) % 3 },
+            )
+        }
+
         item { SectionHeader("HOME") }
 
+        item {
+            SettingRow(
+                title = "Show watched / recent titles",
+                value = if (settings.showContent) "On" else "Off",
+                onLeft = { settings.showContent = !settings.showContent },
+                onRight = { settings.showContent = !settings.showContent },
+            )
+        }
+        item {
+            SettingRow(
+                title = "Allow reading app titles (needed for the row above)",
+                value = if (tvListingsGranted) "Allowed" else "Allow  ›",
+                onClick = { if (!tvListingsGranted) onRequestTvListings() },
+            )
+        }
         item {
             SettingRow(
                 title = "Show non-TV apps",
