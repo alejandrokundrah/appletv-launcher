@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home tiles -->
+    <string name="mini_live_tv">Live TV</string>
+    <string name="mini_movies">Movies &amp; TV</string>
+
+    <!-- Live TV -->
+    <string name="live_title">Live TV</string>
+    <string name="live_search_hint">Search channels</string>
+    <string name="live_all">All</string>
+    <string name="live_loading">Loading channels…</string>
+    <string name="live_failed">Couldn\'t load the channel list. Check the connection and try again.</string>
+    <string name="live_retry">Retry</string>
+    <string name="live_none">No channels match.</string>
+    <string name="live_buffering">Loading…</string>
+    <string name="live_unavailable">This channel isn\'t available right now. Press ▲ or ▼ to try another one.</string>
+    <string name="live_hint">▲ ▼ change channel  ·  Back to exit</string>
+
+    <!-- Movies & TV -->
+    <string name="movies_title">Movies &amp; TV</string>
+    <string name="movies_tab_movies">Movies</string>
+    <string name="movies_tab_tv">TV Shows</string>
+    <string name="movies_search_hint">Search movies and shows</string>
+    <string name="movies_loading">Loading…</string>
+    <string name="movies_searching">Searching…</string>
+    <string name="movies_failed">Couldn\'t reach TMDB. Check the connection and try again.</string>
+    <string name="movies_no_results">No results.</string>
+    <string name="movies_retry">Retry</string>
+    <string name="row_trending">Trending this week</string>
+    <string name="row_popular">Popular</string>
+    <string name="row_top_rated">Top rated</string>
+    <string name="row_now_playing">Now playing</string>
+    <string name="row_on_air">On the air</string>
+    <string name="movies_play">Play</string>
+    <string name="movies_play_episode">Play S%1$d · E%2$d</string>
+    <string name="movies_season">Season %1$d</string>
+    <string name="movies_no_overview">No description available.</string>
+    <string name="movies_episode_label">S%1$d · E%2$d  %3$s</string>
+    <plurals name="movies_seasons_count">
+        <item quantity="one">%1$d season</item>
+        <item quantity="other">%1$d seasons</item>
+    </plurals>
+</resources>

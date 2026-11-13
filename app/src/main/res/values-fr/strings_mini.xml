@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mini_live_tv">TV en direct</string>
+    <string name="mini_movies">Films et séries</string>
+
+    <string name="live_title">TV en direct</string>
+    <string name="live_search_hint">Rechercher une chaîne</string>
+    <string name="live_all">Toutes</string>
+    <string name="live_loading">Chargement des chaînes…</string>
+    <string name="live_failed">Impossible de charger la liste des chaînes. Vérifiez la connexion et réessayez.</string>
+    <string name="live_retry">Réessayer</string>
+    <string name="live_none">Aucune chaîne trouvée.</string>
+    <string name="live_buffering">Chargement…</string>
+    <string name="live_unavailable">Cette chaîne n\'est pas disponible pour le moment. Appuyez sur ▲ ou ▼ pour en essayer une autre.</string>
+    <string name="live_hint">▲ ▼ changer de chaîne  ·  Retour pour quitter</string>
+
+    <string name="movies_title">Films et séries</string>
+    <string name="movies_tab_movies">Films</string>
+    <string name="movies_tab_tv">Séries</string>
+    <string name="movies_search_hint">Rechercher un film ou une série</string>
+    <string name="movies_loading">Chargement…</string>
+    <string name="movies_searching">Recherche…</string>
+    <string name="movies_failed">Impossible de joindre TMDB. Vérifiez la connexion et réessayez.</string>
+    <string name="movies_no_results">Aucun résultat.</string>
+    <string name="movies_retry">Réessayer</string>
+    <string name="row_trending">Tendances de la semaine</string>
+    <string name="row_popular">Populaires</string>
+    <string name="row_top_rated">Les mieux notés</string>
+    <string name="row_now_playing">À l\'affiche</string>
+    <string name="row_on_air">En cours de diffusion</string>
+    <string name="movies_play">Lecture</string>
+    <string name="movies_play_episode">Lecture S%1$d · E%2$d</string>
+    <string name="movies_season">Saison %1$d</string>
+    <string name="movies_no_overview">Aucune description disponible.</string>
+    <string name="movies_episode_label">S%1$d · E%2$d  %3$s</string>
+    <plurals name="movies_seasons_count">
+        <item quantity="one">%1$d saison</item>
+        <item quantity="other">%1$d saisons</item>
+    </plurals>
+</resources>

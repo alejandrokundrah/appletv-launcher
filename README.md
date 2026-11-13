@@ -10,6 +10,25 @@ An Apple TV-style home screen (launcher) for generic Android TV boxes.
 - Focused tile zooms with a spring animation, and the backdrop picks up the app's colour
 - **Launcher settings** (gear button on the home screen, or the remote's Menu key)
 - D-pad friendly: arrows to move, OK to open, **hold OK** for app info / uninstall
+- **Live TV** and **Movies & TV** mini apps, built in as the first two tiles (see below)
+
+## Live TV and Movies & TV
+
+Two tiles at the start of the home row open built-in apps (hide or show them under Settings > Hidden apps).
+
+**Live TV** reads the [iptv-org](https://iptv-org.github.io/iptv/index.m3u) playlist (cached for 12 hours).
+Filter by category chip or the search box, **OK** plays a channel full screen, **Up / Down** (or Channel +/-) zap
+to the next / previous channel in the current list, **OK** shows the channel banner, **Back** returns to the list.
+Streams are played with Media3 / ExoPlayer (HLS and plain files). Many free streams are offline, that's normal.
+
+**Movies & TV** browses [TMDB](https://www.themoviedb.org) (trending, popular, top rated, search). Open a title for
+its details, pick a season / episode for shows, then **Play** opens the player in a WebView:
+
+- `https://viduki.net/3/movie/{tmdb_id}?color={hex}`
+- `https://viduki.net/3/tv/{tmdb_id}/{season}/{episode}?color={hex}`
+
+While a show plays, **Media Next / Previous** (or Channel +/-) jump to the next / previous episode, **Back** leaves.
+The endpoints, TMDB key and player colour live in `MiniConfig` (`MiniApps.kt`).
 
 ## Settings
 
@@ -69,6 +88,10 @@ If the box keeps its old launcher, set it under Settings > Apps > Default apps >
 | `InputRepo.kt` | HDMI / composite inputs from `TvInputManager`, as tiles |
 | `AmbientDream.kt` | the screensaver (`DreamService`) |
 | `GpuInfo.kt` | reads the GPU name so weak GPUs can get the lighter look |
+| `MiniApps.kt` | the Live TV / Movies & TV tiles, plus `MiniConfig` (TMDB key, playlist and player URLs) |
+| `MiniUi.kt` | shared pieces for the mini apps: buttons, search field, artwork card |
+| `LiveTv.kt` | playlist download + parser, channel browser, ExoPlayer screen |
+| `Movies.kt` | TMDB client, browse / details screens, WebView player |
 
 ## Using the new features
 

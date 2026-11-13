@@ -117,6 +117,10 @@ fun LauncherRoot(
         }
     }
 
+    // Built-in mini apps (Live TV, Movies & TV): tiles at the start of the row that open inside the launcher.
+    val minis = remember { MiniApps.entries(context) }
+    var miniApp by remember { mutableStateOf<String?>(null) }
+
     var showSettings by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showQuick by remember { mutableStateOf(false) }
@@ -132,6 +136,7 @@ fun LauncherRoot(
             showSearch = false
             showQuick = false
             menuApp = null
+            miniApp = null
             restoreTo = null
         }
     }
@@ -149,7 +154,9 @@ fun LauncherRoot(
     ) {
         settings.arrange(allApps.filter { it.packageName !in settings.hidden && (settings.showNonTv || it.isTv) })
     }
-    val visible = remember(arranged, inputs) { arranged + inputs }
+    val visible = remember(arranged, inputs, minis, settings.hidden) {
+        minis.filter { it.packageName !in settings.hidden } + arranged + inputs
+    }
     val focused = visible.firstOrNull { it.packageName == focusedPackage } ?: visible.firstOrNull()
 
     fun closeOverlay() {
@@ -161,7 +168,7 @@ fun LauncherRoot(
 
     // Titles the focused app has published (e.g. Netflix "Continue watching"). Waits a moment so
     // scrolling quickly across the tiles doesn't fire a query per tile.
-    val focusedPkg = focused?.takeIf { !it.isInput }?.packageName
+    val focusedPkg = focused?.takeIf { !it.isInput && !MiniApps.isMini(it) }?.packageName
     val content by produceState<List<ContentItem>>(
         emptyList(), focusedPkg, settings.showContent, tvListingsGranted
     ) {
@@ -253,10 +260,27 @@ fun LauncherRoot(
             )
 
             val menu = menuApp
-            if (showSettings) {
+            if (miniApp == MiniApps.LIVE) {
+                LiveTvApp(
+                    lite = lite,
+                    onClose = {
+                        restoreTo = MiniApps.LIVE
+                        miniApp = null
+                    },
+                )
+            } else if (miniApp == MiniApps.MOVIES) {
+                MoviesApp(
+                    lite = lite,
+                    onClose = {
+                        restoreTo = MiniApps.MOVIES
+                        miniApp = null
+                    },
+                )
+            } else if (showSettings) {
                 SettingsScreen(
                     settings = settings,
-                    allApps = allApps,
+                    // mini apps are included so they can be un-hidden from "Hidden apps"
+                    allApps = minis + allApps,
                     locationGranted = locationGranted,
                     tvListingsGranted = tvListingsGranted,
                     gpuName = gpu,
@@ -318,15 +342,20 @@ fun LauncherRoot(
                     restoreTo = restoreTo,
                     onFocusedApp = { focusedPackage = it },
                     onLaunch = { app ->
-                        onLaunch(app)
-                        if (!app.isInput) settings.recordLaunch(app.packageName)
+                        if (MiniApps.isMini(app)) {
+                            miniApp = app.packageName
+                        } else {
+                            onLaunch(app)
+                            if (!app.isInput) settings.recordLaunch(app.packageName)
+                        }
                     },
                     onLaunchContent = { item ->
                         onLaunchContent(item)
                         settings.recordLaunch(item.packageName)
                     },
                     // Long-press OK: pin / move / hide / app info (inputs have none of those)
-                    onOptions = { app -> if (!app.isInput) menuApp = app },
+                    // (mini apps have no menu: hide / show them under Settings > Hidden apps)
+                    onOptions = { app -> if (!app.isInput && !MiniApps.isMini(app)) menuApp = app },
                     onOpenSearch = { showSearch = true },
                     onOpenQuick = { showQuick = true },
                     onOpenSettings = { showSettings = true },
