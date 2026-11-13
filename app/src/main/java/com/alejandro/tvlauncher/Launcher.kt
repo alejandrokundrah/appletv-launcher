@@ -25,8 +25,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
-import android.content.Intent
-import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -292,6 +290,13 @@ fun LauncherRoot(
                         miniApp = null
                     },
                 )
+            } else if (miniApp == MiniApps.MUSIC) {
+                MusicApp(
+                    onClose = {
+                        restoreTo = MiniApps.MUSIC
+                        miniApp = null
+                    },
+                )
             } else if (showSettings) {
                 SettingsScreen(
                     settings = settings,
@@ -360,17 +365,7 @@ fun LauncherRoot(
                     onFocusedApp = { focusedPackage = it },
                     onLaunch = { app ->
                         if (MiniApps.isMini(app)) {
-                            if (app.packageName == MiniApps.MUSIC) {
-                                val music = context.packageManager.getLaunchIntentForPackage(MiniApps.MUSIC_PACKAGE)
-                                if (music != null) {
-                                    music.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    context.startActivity(music)
-                                } else {
-                                    Toast.makeText(context, R.string.music_app_missing, Toast.LENGTH_LONG).show()
-                                }
-                            } else {
-                                miniApp = app.packageName
-                            }
+                            miniApp = app.packageName
                         } else {
                             onLaunch(app)
                             if (!app.isInput) settings.recordLaunch(app.packageName)
