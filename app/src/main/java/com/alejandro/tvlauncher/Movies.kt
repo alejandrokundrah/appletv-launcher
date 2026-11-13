@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -101,6 +103,10 @@ data class TmdbEpisode(val number: Int, val name: String, val still: String?, va
 
 data class TmdbDetail(val genres: String, val runtime: Int, val seasons: List<TmdbSeason>)
 
+data class TmdbCast(val name: String, val character: String, val photo: String?)
+
+data class TmdbExtras(val cast: List<TmdbCast>, val similar: List<TmdbTitle>)
+
 data class TmdbRow(val titleRes: Int, val items: List<TmdbTitle>)
 
 /** What the player screen is asked to play. [season] / [episode] are 0 for movies. */
@@ -114,6 +120,7 @@ object Tmdb {
 
     private val detailCache = HashMap<String, TmdbDetail>()
     private val episodeCache = HashMap<String, List<TmdbEpisode>>()
+    private val extrasCache = HashMap<String, TmdbExtras>()
 
     fun image(path: String, size: String): String = "$IMAGES$size$path"
 
@@ -220,6 +227,35 @@ object Tmdb {
         return TmdbDetail(genres, runtime, seasons).also { detailCache[key] = it }
     }
 
+    /** Top-billed cast plus "more like this" (TMDB recommendations, or similar titles when there are none). */
+    suspend fun extras(t: TmdbTitle): TmdbExtras {
+        val kind = if (t.isTv) "tv" else "movie"
+        val key = "$kind${t.id}"
+        extrasCache[key]?.let { return it }
+        val (credits, recs, sim) = coroutineScope {
+            val c = async { fetch("/$kind/${t.id}/credits") }
+            val r = async { fetch("/$kind/${t.id}/recommendations") }
+            val s = async { fetch("/$kind/${t.id}/similar") }
+            Triple(c.await(), r.await(), s.await())
+        }
+        val castArr = credits?.optJSONArray("cast")
+        val cast = ArrayList<TmdbCast>()
+        if (castArr != null) {
+            for (i in 0 until minOf(castArr.length(), 15)) {
+                val o = castArr.optJSONObject(i) ?: continue
+                val name = o.str("name") ?: continue
+                cast += TmdbCast(name, o.str("character").orEmpty(), o.str("profile_path"))
+            }
+        }
+        var similar = parse(recs?.optJSONArray("results"), t.isTv)
+        if (similar.isEmpty()) similar = parse(sim?.optJSONArray("results"), t.isTv)
+        similar = similar.filter { it.id != t.id }.take(20)
+        val out = TmdbExtras(cast, similar)
+        // Don't cache a total failure (offline), so reopening the page tries again.
+        if (cast.isNotEmpty() || similar.isNotEmpty()) extrasCache[key] = out
+        return out
+    }
+
     suspend fun episodes(tvId: Int, season: Int): List<TmdbEpisode> {
         val key = "$tvId/$season"
         episodeCache[key]?.let { return it }
@@ -253,7 +289,8 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<TmdbTitle>?>(null) }
     var restoreKey by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf<TmdbTitle?>(null) }
+    // Opened titles; "More like this" pushes onto it so Back returns to the previous title.
+    var trail by remember { mutableStateOf<List<TmdbTitle>>(emptyList()) }
     var detailSeason by remember { mutableIntStateOf(1) }
     var play by remember { mutableStateOf<PlayRequest?>(null) }
     val listState = rememberLazyListState()
@@ -282,7 +319,7 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
     }
 
     val p = play
-    val d = detail
+    val d = trail.lastOrNull()
     when {
         p != null -> VodPlayer(
             req = p,
@@ -297,7 +334,8 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
             season = detailSeason,
             onSeason = { detailSeason = it },
             onPlay = { play = it },
-            onBack = { detail = null },
+            onOpenTitle = { detailSeason = 1; trail = trail + it },
+            onBack = { trail = trail.dropLast(1) },
         )
         else -> BrowseScreen(
             tab = tab,
@@ -315,7 +353,7 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
             onOpen = { title, key ->
                 restoreKey = key
                 detailSeason = 1
-                detail = title
+                trail = listOf(title)
             },
             onClose = onClose,
         )
@@ -473,6 +511,7 @@ private fun DetailScreen(
     season: Int,
     onSeason: (Int) -> Unit,
     onPlay: (PlayRequest) -> Unit,
+    onOpenTitle: (TmdbTitle) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -488,8 +527,10 @@ private fun DetailScreen(
         if (t.isTv) value = Tmdb.episodes(t.id, season)
     }
 
+    val extras by produceState<TmdbExtras?>(null, t) { value = Tmdb.extras(t) }
+
     val playFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(t) {
         withFrameNanos { }
         runCatching { playFocus.requestFocus() }
     }
@@ -499,6 +540,9 @@ private fun DetailScreen(
     val screenW = LocalConfiguration.current.screenWidthDp
     val epW: Dp = (screenW * 0.19f).dp
     val epH: Dp = epW * 9 / 16
+    val castW: Dp = (screenW * 0.085f).dp
+    val posterW: Dp = (screenW * 0.105f).dp
+    val screenH = LocalConfiguration.current.screenHeightDp
 
     Box(Modifier.fillMaxSize().background(MiniBg)) {
         backdrop?.let {
@@ -519,7 +563,10 @@ private fun DetailScreen(
             )
         )
 
-        Column(Modifier.fillMaxSize().padding(start = 64.dp, top = 56.dp, end = 64.dp, bottom = 28.dp)) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 64.dp, top = 56.dp, end = 64.dp, bottom = 48.dp)
+        ) {
             GText(t.title, 52.sp, FontWeight.Bold, Color.White, maxLines = 2, shadow = true, modifier = Modifier.fillMaxWidth(0.7f))
             Spacer(Modifier.height(8.dp))
 
@@ -542,7 +589,7 @@ private fun DetailScreen(
                 maxLines = 6, shadow = true, modifier = Modifier.fillMaxWidth(0.55f),
             )
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height((screenH * 0.12f).dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MiniButton(
@@ -585,6 +632,46 @@ private fun DetailScreen(
                                 onClick = { onPlay(PlayRequest(t, season, ep.number, seasons)) },
                             )
                         }
+                    }
+                }
+            }
+
+            val ex = extras
+            if (ex != null && ex.cast.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
+                GText(stringResource(R.string.movies_cast), 22.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.88f), shadow = true)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp, horizontal = 6.dp),
+                ) {
+                    items(ex.cast) { c ->
+                        MiniCard(
+                            title = c.name,
+                            imageUrl = c.photo?.let { Tmdb.image(it, "w185") },
+                            w = castW,
+                            h = castW * 3 / 2,
+                            subtitle = c.character.ifEmpty { null },
+                            onClick = {},
+                        )
+                    }
+                }
+            }
+            if (ex != null && ex.similar.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                GText(stringResource(R.string.movies_more_like_this), 22.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.88f), shadow = true)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp, horizontal = 6.dp),
+                ) {
+                    items(ex.similar, key = { it.id }) { s ->
+                        MiniCard(
+                            title = s.title,
+                            imageUrl = s.poster?.let { Tmdb.image(it, "w342") },
+                            w = posterW,
+                            h = posterW * 3 / 2,
+                            subtitle = subtitleOf(s),
+                            onClick = { onOpenTitle(s) },
+                        )
                     }
                 }
             }
