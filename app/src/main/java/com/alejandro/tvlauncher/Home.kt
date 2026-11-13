@@ -23,6 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -506,7 +507,12 @@ private fun TopButton(onClick: () -> Unit, icon: DrawScope.() -> Unit) {
             .glass(32.dp, emphasis = e)
             .border(2.dp, Color.White.copy(alpha = 0.9f * e), shape)
             .onFocusChanged { focused = it.isFocused }
-            .clickable(onClick = onClick),
+            // No default indication: it draws a dark square over the unclipped round button when focused.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         // Icons are drawn by hand so we don't need an icon library
