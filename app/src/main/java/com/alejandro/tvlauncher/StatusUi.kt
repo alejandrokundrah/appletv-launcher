@@ -95,18 +95,28 @@ private fun NetIcon(kind: NetKind, level: Int, modifier: Modifier) {
         val h = size.height
         when (kind) {
             NetKind.Wifi, NetKind.Offline -> {
-                val active = if (kind == NetKind.Offline) 0 else level.coerceAtLeast(1)
-                val barW = w * 0.18f
-                val gap = w * 0.09f
-                for (i in 0 until 4) {
-                    val barH = h * (0.30f + 0.22f * i)
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = if (i < active) 0.95f else 0.28f),
-                        topLeft = Offset(i * (barW + gap), h - barH),
-                        size = Size(barW, barH),
-                        cornerRadius = CornerRadius(barW * 0.4f),
+                // Lucide "wifi" icon (24-unit grid): a dot and three arcs, all centred on (12, 20).
+                // The signal level lights 1-3 arcs; the rest stay dim.
+                val u = w / 24f
+                val lit = if (kind == NetKind.Offline) 0 else ((level.coerceAtLeast(1) * 3 + 3) / 4)
+                val on = Color.White.copy(alpha = 0.95f)
+                val off = Color.White.copy(alpha = 0.28f)
+                val stroke = Stroke(width = 2.5f * u, cap = StrokeCap.Round)
+                val arcs = listOf(5f to 3.5f, 10f to 7f, 15f to 10f) // radius to half-chord
+                arcs.forEachIndexed { i, (r, c) ->
+                    val d = kotlin.math.sqrt(r * r - c * c)
+                    val phi = Math.toDegrees(kotlin.math.atan2(d.toDouble(), c.toDouble())).toFloat()
+                    drawArc(
+                        color = if (i < lit) on else off,
+                        startAngle = 180f + phi,
+                        sweepAngle = 180f - 2f * phi,
+                        useCenter = false,
+                        topLeft = Offset((12f - r) * u, (20f - r) * u),
+                        size = Size(2f * r * u, 2f * r * u),
+                        style = stroke,
                     )
                 }
+                drawCircle(color = if (kind == NetKind.Offline) off else on, radius = 1.25f * u, center = Offset(12f * u, 20f * u))
                 if (kind == NetKind.Offline) {
                     drawLine(
                         color = Color(0xFFFF6B6B),
