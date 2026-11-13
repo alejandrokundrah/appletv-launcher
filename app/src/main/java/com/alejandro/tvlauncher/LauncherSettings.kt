@@ -125,6 +125,12 @@ class LauncherSettings(context: Context) {
     /** Play the system's navigation / click sounds while moving around (follows the system sound-effects setting). */
     var sounds by boolPref("sounds", false)
 
+    /** Optional movie/TV WebView fallbacks, tried after the primary Vidly player fails. */
+    var zxcstreamPlayer by boolPref("zxcstream_player", false)
+    var vidsrcPlayer by boolPref("vidsrc_player", false)
+    var customPlayerEnabled by boolPref("custom_player_enabled", false)
+    var customPlayerUrl by stringPref("custom_player_url", "")
+
     var hidden: Set<String> by mutableStateOf(sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet())
         private set
 
@@ -233,6 +239,10 @@ class LauncherSettings(context: Context) {
         slideshow = 0
         accentFocus = true
         sounds = false
+        zxcstreamPlayer = false
+        vidsrcPlayer = false
+        customPlayerEnabled = false
+        customPlayerUrl = ""
         pinned = emptyList()
         order = emptyList()
         hidden = emptySet()

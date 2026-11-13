@@ -27,6 +27,11 @@ its details, pick a season / episode for shows, then **Play** opens the player i
 - `https://vidly.pro/movie/{tmdb_id}`
 - `https://vidly.pro/tv/{tmdb_id}/{season}/{episode}`
 
+Vidly is the primary player. Optional fallback players can be enabled under Settings > Movie Player:
+zxcstream and vidsrc are built in, and a custom HTTP(S) URL template is supported using `{type}`, `{id}`,
+`{season}`, and `{episode}` placeholders. Enabled fallbacks are tried automatically when the current player
+reports a page error or does not load within ten seconds.
+
 While a show plays, **Media Next / Previous** (or Channel +/-) jump to the next / previous episode, **Back** leaves.
 The endpoints and TMDB key live in `MiniConfig` (`MiniApps.kt`).
 

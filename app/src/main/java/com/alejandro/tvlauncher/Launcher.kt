@@ -25,6 +25,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
+import android.content.Intent
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -120,6 +122,7 @@ fun LauncherRoot(
     // Built-in mini apps (Live TV, Movies & TV): tiles at the start of the row that open inside the launcher.
     val minis = remember { MiniApps.entries(context) }
     var miniApp by remember { mutableStateOf<String?>(null) }
+    var pendingMovie by remember { mutableStateOf<TmdbTitle?>(null) }
 
     var showSettings by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
@@ -152,7 +155,11 @@ fun LauncherRoot(
         allApps, settings.hidden, settings.showNonTv, settings.pinned, settings.order,
         settings.sortMode, settings.launched,
     ) {
-        settings.arrange(allApps.filter { it.packageName !in settings.hidden && (settings.showNonTv || it.isTv) })
+        settings.arrange(allApps.filter {
+            it.packageName !in settings.hidden &&
+                it.packageName != MiniApps.MUSIC_PACKAGE &&
+                (settings.showNonTv || it.isTv)
+        })
     }
     val visible = remember(arranged, inputs, minis, settings.hidden) {
         minis.filter { it.packageName !in settings.hidden } + arranged + inputs
@@ -178,6 +185,11 @@ fun LauncherRoot(
         }
         delay(250)
         value = ContentRepo.load(context, focusedPkg)
+    }
+
+    // A lightweight public row for the launcher homepage. It refreshes when Home is pressed again.
+    val trendingMovies by produceState<List<TmdbTitle>>(emptyList(), homeSignal) {
+        value = Tmdb.trendingMovies().take(12)
     }
 
     val accent by animateColorAsState(
@@ -271,9 +283,12 @@ fun LauncherRoot(
                 )
             } else if (miniApp == MiniApps.MOVIES) {
                 MoviesApp(
+                    settings = settings,
+                    initialTitle = pendingMovie,
                     lite = lite,
                     onClose = {
                         restoreTo = MiniApps.MOVIES
+                        pendingMovie = null
                         miniApp = null
                     },
                 )
@@ -336,6 +351,7 @@ fun LauncherRoot(
                     apps = visible,
                     focused = focused,
                     content = content,
+                    trendingMovies = trendingMovies,
                     settings = settings,
                     weather = weather,
                     net = net,
@@ -344,7 +360,17 @@ fun LauncherRoot(
                     onFocusedApp = { focusedPackage = it },
                     onLaunch = { app ->
                         if (MiniApps.isMini(app)) {
-                            miniApp = app.packageName
+                            if (app.packageName == MiniApps.MUSIC) {
+                                val music = context.packageManager.getLaunchIntentForPackage(MiniApps.MUSIC_PACKAGE)
+                                if (music != null) {
+                                    music.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(music)
+                                } else {
+                                    Toast.makeText(context, R.string.music_app_missing, Toast.LENGTH_LONG).show()
+                                }
+                            } else {
+                                miniApp = app.packageName
+                            }
                         } else {
                             onLaunch(app)
                             if (!app.isInput) settings.recordLaunch(app.packageName)
@@ -353,6 +379,10 @@ fun LauncherRoot(
                     onLaunchContent = { item ->
                         onLaunchContent(item)
                         settings.recordLaunch(item.packageName)
+                    },
+                    onOpenTrendingMovie = { title ->
+                        pendingMovie = title
+                        miniApp = MiniApps.MOVIES
                     },
                     // Long-press OK: pin / move / hide / app info (inputs have none of those)
                     // (mini apps have no menu: hide / show them under Settings > Hidden apps)

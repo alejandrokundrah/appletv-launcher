@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -178,6 +179,9 @@ object Tmdb {
     private suspend fun list(path: String, tv: Boolean): List<TmdbTitle> =
         parse(fetch(path)?.optJSONArray("results"), tv)
 
+    /** Weekly movie trends used by the launcher homepage. */
+    suspend fun trendingMovies(): List<TmdbTitle> = list("/trending/movie/week", false)
+
     /** Home rows for the Movies or TV Shows tab (rows that failed to load are left out). */
     suspend fun rows(tv: Boolean): List<TmdbRow> = coroutineScope {
         val specs = if (tv) {
@@ -280,7 +284,7 @@ private val MiniBg = Color(0xFF07070C)
 
 /** Movies & TV mini app: browse (TMDB) → details → play (our player in a WebView). */
 @Composable
-fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
+fun MoviesApp(settings: LauncherSettings, initialTitle: TmdbTitle? = null, lite: Boolean, onClose: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var movieRows by remember { mutableStateOf<List<TmdbRow>?>(null) }
     var tvRows by remember { mutableStateOf<List<TmdbRow>?>(null) }
@@ -297,6 +301,13 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
     val gridState = rememberLazyGridState()
     // Horizontal scroll position of every row, kept while a title's details are open.
     val rowStates = remember { HashMap<String, LazyListState>() }
+
+    LaunchedEffect(initialTitle) {
+        if (initialTitle != null && trail.isEmpty()) {
+            trail = listOf(initialTitle)
+            detailSeason = 1
+        }
+    }
 
     LaunchedEffect(tab, reload) {
         failed = false
@@ -323,6 +334,7 @@ fun MoviesApp(lite: Boolean, onClose: () -> Unit) {
     when {
         p != null -> VodPlayer(
             req = p,
+            settings = settings,
             onBack = { play = null },
             onEpisode = { s, e ->
                 detailSeason = s
@@ -704,15 +716,27 @@ private fun PlayRequest.step(delta: Int): Pair<Int, Int>? {
     }
 }
 
-private fun playerUrl(r: PlayRequest): String =
-    if (r.title.isTv) {
-        "${MiniConfig.PLAYER_BASE}/tv/${r.title.id}/${r.season}/${r.episode}"
-    } else {
-        "${MiniConfig.PLAYER_BASE}/movie/${r.title.id}"
-    }
+private fun playerUrl(base: String, r: PlayRequest): String {
+    val type = if (r.title.isTv) "tv" else "movie"
+    val suffix = if (r.title.isTv) "/${r.title.id}/${r.season}/${r.episode}" else "/${r.title.id}"
+    val template = base.trimEnd('/')
+    val hasTemplate = listOf("{type}", "{id}", "{season}", "{episode}").any { it in template }
+    return template.replace("{type}", type).replace("{id}", r.title.id.toString())
+        .replace("{season}", r.season.toString()).replace("{episode}", r.episode.toString())
+        .let { if (hasTemplate) it else it + "/$type$suffix" }
+}
 
-private fun isPlayerHost(host: String?): Boolean =
-    host != null && (host == MiniConfig.PLAYER_HOST || host.endsWith("." + MiniConfig.PLAYER_HOST))
+private fun playerUrls(r: PlayRequest, settings: LauncherSettings): List<String> = buildList {
+    add(playerUrl(MiniConfig.PLAYER_BASE, r))
+    if (settings.zxcstreamPlayer) add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
+    if (settings.vidsrcPlayer) add(playerUrl(MiniConfig.VIDSRC_BASE, r))
+    if (settings.customPlayerEnabled && settings.customPlayerUrl.isNotBlank()) {
+        add(playerUrl(settings.customPlayerUrl, r))
+    }
+}
+
+private fun isPlayerHost(host: String?, allowedHosts: Set<String>): Boolean =
+    host != null && allowedHosts.any { host == it || host.endsWith(".$it") }
 
 /**
  * A WebView in a container that (a) sees remote keys first, so Next / Previous / Channel +/- can switch
@@ -722,6 +746,8 @@ private fun isPlayerHost(host: String?): Boolean =
 private class PlayerHost(context: Context) {
 
     var onKey: ((Int) -> Boolean)? = null
+    var onLoadFailed: (() -> Unit)? = null
+    var onPageLoaded: (() -> Unit)? = null
 
     val root = object : FrameLayout(context) {
         override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -752,13 +778,26 @@ private class PlayerHost(context: Context) {
             // Ads love to redirect the whole page: only our own player is allowed to navigate the top frame.
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (!request.isForMainFrame) return false
-                return !isPlayerHost(request.url.host)
+                return !isPlayerHost(request.url.host, allowedHosts)
             }
 
             // Android 6 and older call this variant instead.
             @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
-                !isPlayerHost(Uri.parse(url).host)
+                !isPlayerHost(Uri.parse(url).host, allowedHosts)
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (request.isForMainFrame) onLoadFailed?.invoke()
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                onPageLoaded?.invoke()
+            }
+
+            @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
+            override fun onReceivedError(view: WebView, errorCode: Int, description: String?, failingUrl: String?) {
+                onLoadFailed?.invoke()
+            }
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {
@@ -778,6 +817,10 @@ private class PlayerHost(context: Context) {
         }
         root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
+
+    private var allowedHosts: Set<String> = emptySet()
+
+    fun setAllowedHosts(hosts: Set<String>) { allowedHosts = hosts }
 
     /** Leaves the page's full-screen video. Returns false when it wasn't in full screen. */
     fun hideCustom(): Boolean {
@@ -802,12 +845,17 @@ private class PlayerHost(context: Context) {
 
 /** Plays a movie / episode with the web player. Back leaves; Next / Previous (or Channel +/-) change episode. */
 @Composable
-private fun VodPlayer(req: PlayRequest, onBack: () -> Unit, onEpisode: (Int, Int) -> Unit) {
+private fun VodPlayer(settings: LauncherSettings, req: PlayRequest, onBack: () -> Unit, onEpisode: (Int, Int) -> Unit) {
     val context = LocalContext.current
     val host = remember { PlayerHost(context) }
     val currentReq by rememberUpdatedState(req)
     val currentOnEpisode by rememberUpdatedState(onEpisode)
-    val url = remember(req) { playerUrl(req) }
+    val urls = remember(req, settings.zxcstreamPlayer, settings.vidsrcPlayer, settings.customPlayerEnabled, settings.customPlayerUrl) {
+        playerUrls(req, settings)
+    }
+    var serverIndex by remember(req) { mutableIntStateOf(0) }
+    var pageLoaded by remember(req) { mutableStateOf(false) }
+    val url = urls[serverIndex.coerceIn(0, urls.lastIndex)]
     var showTitle by remember { mutableStateOf(true) }
 
     host.onKey = { code ->
@@ -826,6 +874,12 @@ private fun VodPlayer(req: PlayRequest, onBack: () -> Unit, onEpisode: (Int, Int
         }
     }
 
+    host.setAllowedHosts(urls.mapNotNull { Uri.parse(it).host }.toSet())
+    host.onLoadFailed = {
+        if (serverIndex < urls.lastIndex) serverIndex++
+    }
+    host.onPageLoaded = { pageLoaded = true }
+
     DisposableEffect(host) { onDispose { host.destroy() } }
 
     val owner = LocalLifecycleOwner.current
@@ -839,8 +893,11 @@ private fun VodPlayer(req: PlayRequest, onBack: () -> Unit, onEpisode: (Int, Int
     }
 
     LaunchedEffect(url) {
+        pageLoaded = false
         host.web.loadUrl(url)
         showTitle = true
+        delay(10_000)
+        if (!pageLoaded && serverIndex < urls.lastIndex) serverIndex++
         delay(3500)
         showTitle = false
     }

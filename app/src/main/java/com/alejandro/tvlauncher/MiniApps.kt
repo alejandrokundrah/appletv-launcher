@@ -29,6 +29,11 @@ object MiniConfig {
 
     /** Host the player WebView may navigate to (everything else is blocked as an ad redirect). */
     const val PLAYER_HOST = "vidly.pro"
+
+    const val ZXCSTREAM_BASE = "https://zxcstream.com/embed"
+    const val ZXCSTREAM_HOST = "zxcstream.com"
+    const val VIDSRC_BASE = "https://vidsrc.pro/embed"
+    const val VIDSRC_HOST = "vidsrc.pro"
 }
 
 /**
@@ -41,15 +46,19 @@ object MiniApps {
     const val PREFIX = "mini:"
     const val LIVE = "mini:live"
     const val MOVIES = "mini:movies"
+    const val MUSIC = "mini:music"
+    const val MUSIC_PACKAGE = "com.opentune"
 
     fun isMini(app: AppEntry): Boolean = app.packageName.startsWith(PREFIX)
 
     fun entries(context: Context): List<AppEntry> {
         val live = banner(0xFFFF6B6B.toInt(), 0xFF8E1B3A.toInt()) { c, p -> drawTv(c, p) }
         val movies = banner(0xFF8B6CFF.toInt(), 0xFF2A1B6E.toInt()) { c, p -> drawPlay(c, p) }
+        val music = banner(0xFF38B8C9.toInt(), 0xFF102C52.toInt()) { c, p -> drawMusic(c, p) }
         return listOf(
             entry(context.getString(R.string.mini_live_tv), LIVE, live, Color(0xFFE5484D)),
             entry(context.getString(R.string.mini_movies), MOVIES, movies, Color(0xFF7C5CFF)),
+            entry(context.getString(R.string.mini_music), MUSIC, music, Color(0xFF38B8C9)),
         )
     }
 
@@ -112,5 +121,19 @@ object MiniApps {
             close()
         }
         c.drawPath(tri, p)
+    }
+
+    /** A simple music note for the native OpenTune handoff tile. */
+    private fun drawMusic(c: Canvas, p: Paint) {
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 11f
+        p.strokeCap = Paint.Cap.ROUND
+        p.color = AColor.WHITE
+        c.drawLine(218f, 56f, 218f, 137f, p)
+        c.drawLine(218f, 56f, 270f, 44f, p)
+        c.drawLine(270f, 44f, 270f, 118f, p)
+        p.style = Paint.Style.FILL
+        c.drawOval(RectF(154f, 126f, 224f, 166f), p)
+        c.drawOval(RectF(206f, 107f, 276f, 147f), p)
     }
 }

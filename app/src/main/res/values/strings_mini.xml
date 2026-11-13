@@ -3,6 +3,8 @@
     <!-- Home tiles -->
     <string name="mini_live_tv">Live TV</string>
     <string name="mini_movies">Movies &amp; TV</string>
+    <string name="mini_music">Music</string>
+    <string name="music_app_missing">Install the native Weav-Tune / OpenTune app to use Music.</string>
 
     <!-- Live TV -->
     <string name="live_title">Live TV</string>

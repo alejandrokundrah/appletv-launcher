@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +53,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -151,6 +154,8 @@ private fun MainPage(
 ) {
     val glassCount = GlassStyle.entries.size
     val cityCount = WeatherRepo.cities.size
+    var showCustomPlayerDialog by remember { mutableStateOf(false) }
+    var customPlayerDraft by remember { mutableStateOf(settings.customPlayerUrl) }
 
     LazyColumn(
         Modifier.fillMaxWidth().fillMaxHeight(),
@@ -260,6 +265,42 @@ private fun MainPage(
                 title = stringResource(R.string.screensaver),
                 value = stringResource(R.string.open),
                 onClick = { onSystemIntent(Settings.ACTION_DREAM_SETTINGS) },
+            )
+        }
+
+        item { SectionHeader(stringResource(R.string.sec_player)) }
+        item {
+            SettingRow(
+                title = stringResource(R.string.player_zxcstream),
+                value = stringResource(if (settings.zxcstreamPlayer) R.string.on else R.string.off),
+                onLeft = { settings.zxcstreamPlayer = !settings.zxcstreamPlayer },
+                onRight = { settings.zxcstreamPlayer = !settings.zxcstreamPlayer },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.player_vidsrc),
+                value = stringResource(if (settings.vidsrcPlayer) R.string.on else R.string.off),
+                onLeft = { settings.vidsrcPlayer = !settings.vidsrcPlayer },
+                onRight = { settings.vidsrcPlayer = !settings.vidsrcPlayer },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.player_custom_enabled),
+                value = stringResource(if (settings.customPlayerEnabled) R.string.on else R.string.off),
+                onLeft = { if (settings.customPlayerUrl.isNotBlank()) settings.customPlayerEnabled = !settings.customPlayerEnabled },
+                onRight = { if (settings.customPlayerUrl.isNotBlank()) settings.customPlayerEnabled = !settings.customPlayerEnabled },
+            )
+        }
+        item {
+            SettingRow(
+                title = stringResource(R.string.player_custom_url),
+                value = if (settings.customPlayerUrl.isBlank()) stringResource(R.string.not_set) else stringResource(R.string.edit),
+                onClick = {
+                    customPlayerDraft = settings.customPlayerUrl
+                    showCustomPlayerDialog = true
+                },
             )
         }
 
@@ -425,6 +466,43 @@ private fun MainPage(
                 value = stringResource(R.string.reset),
                 onClick = { settings.reset() },
             )
+        }
+    }
+
+    if (showCustomPlayerDialog) {
+        Dialog(
+            onDismissRequest = { showCustomPlayerDialog = false },
+        ) {
+            Column(
+                Modifier.width(560.dp).background(Color(0xFF20202A), RoundedCornerShape(18.dp)).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GText(stringResource(R.string.player_custom_url), 24.sp, FontWeight.Bold, Color.White)
+                GText(stringResource(R.string.player_custom_hint), 16.sp, FontWeight.Normal, Color.White.copy(alpha = 0.78f))
+                BasicTextField(
+                    value = customPlayerDraft,
+                    onValueChange = { customPlayerDraft = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                    modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Box(Modifier.clickable { showCustomPlayerDialog = false }.padding(12.dp)) {
+                        GText(stringResource(R.string.cancel), 16.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.8f))
+                    }
+                    Box(Modifier.clickable {
+                        val value = customPlayerDraft.trim()
+                        if (value.isBlank() || value.startsWith("https://") || value.startsWith("http://")) {
+                            settings.customPlayerUrl = value
+                            if (value.isBlank()) settings.customPlayerEnabled = false
+                            showCustomPlayerDialog = false
+                        }
+                    }.padding(12.dp)) {
+                        GText(stringResource(R.string.save), 16.sp, FontWeight.Bold, Color(0xFFB9A8FF))
+                    }
+                }
+            }
         }
     }
 }

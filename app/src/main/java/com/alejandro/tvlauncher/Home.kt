@@ -87,6 +87,7 @@ fun HomeContent(
     apps: List<AppEntry>,
     focused: AppEntry?,
     content: List<ContentItem>,
+    trendingMovies: List<TmdbTitle>,
     settings: LauncherSettings,
     weather: WeatherInfo?,
     net: NetInfo?,
@@ -95,6 +96,7 @@ fun HomeContent(
     onFocusedApp: (String) -> Unit,
     onLaunch: (AppEntry) -> Unit,
     onLaunchContent: (ContentItem) -> Unit,
+    onOpenTrendingMovie: (TmdbTitle) -> Unit,
     onOptions: (AppEntry) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenQuick: () -> Unit,
@@ -194,6 +196,10 @@ fun HomeContent(
             ContentRow(content, tileWidth, onLaunchContent)
         }
 
+        if (trendingMovies.isNotEmpty()) {
+            TrendingMoviesRow(trendingMovies, tileWidth, lite = LocalGlass.current.lite, onOpen = onOpenTrendingMovie)
+        }
+
         Spacer(Modifier.height(14.dp))
 
         LazyRow(
@@ -230,6 +236,39 @@ fun HomeContent(
         }
 
         Spacer(Modifier.height(18.dp))
+    }
+}
+
+/** Weekly TMDB movie trends, shown on the launcher homepage independently of installed apps. */
+@Composable
+private fun TrendingMoviesRow(items: List<TmdbTitle>, tileWidth: Dp, lite: Boolean, onOpen: (TmdbTitle) -> Unit) {
+    val cards = items.map { title ->
+        ContentItem(
+            packageName = "tmdb:${title.id}",
+            title = title.title,
+            posterUri = title.poster?.let { Tmdb.image(it, "w342") },
+            intentUri = null,
+            watched = false,
+            lastEngagement = 0L,
+        )
+    }
+    Column(Modifier.padding(top = 10.dp)) {
+        GText(
+            stringResource(R.string.home_trending_movies),
+            20.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.padding(start = 80.dp, bottom = 6.dp),
+            shadow = true,
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 80.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            itemsIndexed(cards, key = { _, item -> item.packageName }) { index, item ->
+                ContentCard(item, tileWidth * 0.85f, tileWidth * 0.85f * 9 / 16, lite) {
+                    onOpen(items[index])
+                }
+            }
+        }
     }
 }
 

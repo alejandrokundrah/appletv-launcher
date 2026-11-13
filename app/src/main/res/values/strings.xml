@@ -13,6 +13,17 @@
     <string name="sec_home">HOME</string>
     <string name="sec_status">STATUS BAR</string>
     <string name="sec_system">SYSTEM</string>
+    <string name="sec_player">MOVIE PLAYER</string>
+    <string name="player_zxcstream">Use zxcstream fallback</string>
+    <string name="player_vidsrc">Use vidsrc fallback</string>
+    <string name="player_custom_enabled">Use custom player</string>
+    <string name="player_custom_url">Custom player URL</string>
+    <string name="player_custom_hint">Enter a URL template. Use {type}, {id}, {season}, and {episode}; for example https://example.com/{type}/{id}.</string>
+    <string name="player_url_label">Player URL template</string>
+    <string name="not_set">Not set</string>
+    <string name="edit">Edit</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
     <string name="glass_style">Glass style</string>
     <string name="glass_clear">Clear</string>
     <string name="glass_frosted">Frosted</string>
@@ -98,6 +109,7 @@
     <string name="allow_titles">Allow reading app titles (needed for the row above)</string>
     <string name="row_continue">Continue watching</string>
     <string name="row_recommended">Recommended</string>
+    <string name="home_trending_movies">Trending movies</string>
     <string name="city_auto">Auto (from IP address)</string>
     <string name="city_dakar">Dakar</string>
     <string name="city_bambey">Bambey</string>
