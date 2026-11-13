@@ -35,7 +35,7 @@ object Wallpapers {
 
     fun customFile(context: Context): File = File(context.filesDir, "wallpaper_custom.jpg")
 
-    /** A new photo each day, downloaded from [DAILY_SOURCE] (a free random-photo service, seeded by the date). */
+    /** A new photo each day, downloaded from Unsplash (or a fallback random-photo service when no API key is set). */
     const val DAILY = "daily"
     private const val FALLBACK_SOURCE = "https://picsum.photos/seed/%s/1920/1080"
 
