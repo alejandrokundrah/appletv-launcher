@@ -37,4 +37,8 @@
         <item quantity="one">%1$d temporada</item>
         <item quantity="other">%1$d temporadas</item>
     </plurals>
+    <string name="live_favorites">★ Favoritos</string>
+    <string name="live_no_favorites">Aún no hay favoritos.</string>
+    <string name="live_fav_browse_hint">Mantén OK en un canal para añadirlo a Favoritos</string>
+    <string name="live_hint_fav">OK largo: favorito</string>
 </resources>

@@ -98,6 +98,7 @@ If the box keeps its old launcher, set it under Settings > Apps > Default apps >
 - **Long-press OK on a tile**: pin to the front, move left / right, hide, or open the app's info.
 - **Search** (magnifier, top right): app names plus every title the installed apps publish to Android TV. With nothing typed it lists what you can continue watching across apps.
 - **Quick settings** (four-squares button): Wi-Fi, network, Bluetooth, display, sound, date & time, accessibility.
+- **Live TV favorites**: hold OK on a channel (in the list, or while watching; the Menu key also works) to add or remove it. The "★ Favorites" chip next to "All" shows them, and zapping with Up / Down stays inside your favorites.
 - **Wallpaper > Daily photo** downloads a new picture each day from picsum.photos (change `DAILY_SOURCE` in `Wallpapers.kt` to use another source).
 
 ## Status bar notes

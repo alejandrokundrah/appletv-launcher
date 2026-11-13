@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -189,9 +190,12 @@ object IptvRepo {
 
 // ------------------------------------------------------------------------------------ screens
 
-/** Live TV mini app: browse the playlist by category / search, OK plays, Up / Down zaps. */
+/** Category value that stands for the "Favorites" chip (never a real playlist group). */
+private const val FAVORITES = "\u0000favorites"
+
+/** Live TV mini app: browse the playlist by category / search, OK plays, Up / Down zaps, hold OK = favorite. */
 @Composable
-fun LiveTvApp(lite: Boolean, onClose: () -> Unit) {
+fun LiveTvApp(settings: LauncherSettings, lite: Boolean, onClose: () -> Unit) {
     val context = LocalContext.current
     var channels by remember { mutableStateOf<List<Channel>?>(null) }
     var failed by remember { mutableStateOf(false) }
@@ -200,7 +204,11 @@ fun LiveTvApp(lite: Boolean, onClose: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var playIndex by remember { mutableIntStateOf(-1) }
     var focusIndex by remember { mutableIntStateOf(0) }
+    // The list being zapped through is frozen when playback starts, so un-favouriting the channel you are
+    // watching (inside the Favorites list) doesn't swap the channel under you.
+    var playList by remember { mutableStateOf<List<Channel>>(emptyList()) }
     val gridState = rememberLazyGridState()
+    val favorites = settings.favoriteChannels
 
     LaunchedEffect(reload) {
         failed = false
@@ -213,16 +221,26 @@ fun LiveTvApp(lite: Boolean, onClose: () -> Unit) {
     val categories = remember(all) {
         all?.flatMap { it.groups }?.distinct()?.sortedBy { it.lowercase() } ?: emptyList()
     }
-    val filtered = remember(all, category, query) {
+    // Only the Favorites view depends on the favourites list, so toggling a star elsewhere doesn't re-filter.
+    val favKey = if (category == FAVORITES) favorites else null
+    val filtered = remember(all, category, query, favKey) {
         val q = query.trim().lowercase()
-        all?.filter { ch ->
-            (category == null || category in ch.groups) && (q.isEmpty() || q in ch.name.lowercase())
+        val base = all?.filter { ch ->
+            val inCategory = when (category) {
+                null -> true
+                FAVORITES -> ch.url in favorites
+                else -> category in ch.groups
+            }
+            inCategory && (q.isEmpty() || q in ch.name.lowercase())
         } ?: emptyList()
+        if (category == FAVORITES) base.sortedBy { favorites.indexOf(it.url) } else base
     }
 
-    if (playIndex in filtered.indices) {
+    if (playIndex in playList.indices) {
         LivePlayer(
-            list = filtered,
+            list = playList,
+            favorites = favorites,
+            onToggleFavorite = { settings.toggleFavoriteChannel(it.url) },
             startIndex = playIndex,
             onIndexChange = {
                 playIndex = it
@@ -238,6 +256,8 @@ fun LiveTvApp(lite: Boolean, onClose: () -> Unit) {
             filtered = filtered,
             categories = categories,
             category = category,
+            favorites = favorites,
+            onToggleFavorite = { settings.toggleFavoriteChannel(it.url) },
             onCategory = { category = it },
             query = query,
             onQuery = { query = it },
@@ -245,6 +265,7 @@ fun LiveTvApp(lite: Boolean, onClose: () -> Unit) {
             focusIndex = focusIndex,
             onPlay = { index ->
                 focusIndex = index
+                playList = filtered
                 playIndex = index
             },
             onRetry = { reload++ },
@@ -261,6 +282,8 @@ private fun ChannelBrowser(
     filtered: List<Channel>,
     categories: List<String>,
     category: String?,
+    favorites: List<String>,
+    onToggleFavorite: (Channel) -> Unit,
     onCategory: (String?) -> Unit,
     query: String,
     onQuery: (String) -> Unit,
@@ -273,11 +296,13 @@ private fun ChannelBrowser(
     BackHandler(enabled = true) { onClose() }
     val gridFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
+    // The list can shrink (un-favouriting inside Favorites), so never point past its end.
+    val focusAt = focusIndex.coerceIn(0, (filtered.size - 1).coerceAtLeast(0))
 
     // Back from the player: land on the channel that was playing.
     LaunchedEffect(loaded) {
         if (loaded && filtered.isNotEmpty()) {
-            gridState.scrollToItem(focusIndex.coerceIn(0, filtered.lastIndex))
+            gridState.scrollToItem(focusAt)
             withFrameNanos { }
             runCatching { gridFocus.requestFocus() }
         }
@@ -305,7 +330,16 @@ private fun ChannelBrowser(
                     hint = stringResource(R.string.live_search_hint),
                     modifier = Modifier.width(420.dp),
                 )
-                Spacer(Modifier.weight(1f))
+                if (loaded) {
+                    GText(
+                        stringResource(R.string.live_fav_browse_hint),
+                        16.sp, FontWeight.Normal, Color.White.copy(alpha = 0.5f), maxLines = 1,
+                        align = TextAlign.End,
+                        modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
                 if (loaded) {
                     GText(
                         if (filtered.size == total) "$total" else "${filtered.size} / $total",
@@ -325,14 +359,18 @@ private fun ChannelBrowser(
                 }
                 !loaded -> MiniMessage(stringResource(R.string.live_loading))
                 else -> {
-                    val chips = remember(categories) { listOf<String?>(null) + categories }
+                    val chips = remember(categories) { listOf<String?>(null, FAVORITES) + categories }
                     LazyRow(
                         contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(chips, key = { it ?: "" }) { c ->
                             MiniButton(
-                                text = c ?: stringResource(R.string.live_all),
+                                text = when (c) {
+                                    null -> stringResource(R.string.live_all)
+                                    FAVORITES -> stringResource(R.string.live_favorites)
+                                    else -> c
+                                },
                                 selected = c == category,
                                 onClick = { onCategory(c) },
                             )
@@ -340,7 +378,12 @@ private fun ChannelBrowser(
                     }
                     Spacer(Modifier.height(12.dp))
                     if (filtered.isEmpty()) {
-                        MiniMessage(stringResource(R.string.live_none))
+                        MiniMessage(
+                            stringResource(
+                                if (category == FAVORITES && query.isBlank()) R.string.live_no_favorites
+                                else R.string.live_none
+                            )
+                        )
                     } else {
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = 210.dp),
@@ -353,8 +396,10 @@ private fun ChannelBrowser(
                             itemsIndexed(filtered) { index, ch ->
                                 ChannelCard(
                                     ch = ch,
-                                    requester = if (index == focusIndex) gridFocus else null,
+                                    favorite = ch.url in favorites,
+                                    requester = if (index == focusAt) gridFocus else null,
                                     onClick = { onPlay(index) },
+                                    onLongClick = { onToggleFavorite(ch) },
                                 )
                             }
                         }
@@ -366,7 +411,13 @@ private fun ChannelBrowser(
 }
 
 @Composable
-private fun ChannelCard(ch: Channel, requester: FocusRequester?, onClick: () -> Unit) {
+private fun ChannelCard(
+    ch: Channel,
+    favorite: Boolean,
+    requester: FocusRequester?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     val context = LocalContext.current
     val logo by produceState<ImageBitmap?>(null, ch.logo) {
         value = ch.logo?.let { PosterLoader.load(context, it) }
@@ -390,7 +441,7 @@ private fun ChannelCard(ch: Channel, requester: FocusRequester?, onClick: () -> 
                 .border(3.dp, Color.White.copy(alpha = 0.95f * e), shape)
                 .onFocusChanged { focused = it.isFocused }
                 .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
-                .clickable(onClick = onClick),
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center,
         ) {
             val l = logo
@@ -405,6 +456,13 @@ private fun ChannelCard(ch: Channel, requester: FocusRequester?, onClick: () -> 
                 GText(
                     ch.name, 16.sp, FontWeight.Medium, Color.White.copy(alpha = 0.85f),
                     maxLines = 3, align = TextAlign.Center, modifier = Modifier.padding(12.dp),
+                )
+            }
+            if (favorite) {
+                GText(
+                    "★", 22.sp, FontWeight.Bold, Color(0xFFFFD60A),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
+                    shadow = true,
                 )
             }
         }
@@ -454,6 +512,8 @@ private fun buildSource(ch: Channel): MediaSource {
 @Composable
 private fun LivePlayer(
     list: List<Channel>,
+    favorites: List<String>,
+    onToggleFavorite: (Channel) -> Unit,
     startIndex: Int,
     onIndexChange: (Int) -> Unit,
     onBack: () -> Unit,
@@ -529,7 +589,18 @@ private fun LivePlayer(
                         index = (index - 1 + list.size) % list.size
                         true
                     }
-                    Key.DirectionCenter, Key.Enter, Key.DirectionLeft, Key.DirectionRight -> {
+                    // Hold OK (or press Menu) to add / remove the channel from Favorites.
+                    Key.DirectionCenter, Key.Enter -> {
+                        if (ev.nativeKeyEvent.isLongPress) onToggleFavorite(ch)
+                        infoTick++
+                        true
+                    }
+                    Key.Menu -> {
+                        onToggleFavorite(ch)
+                        infoTick++
+                        true
+                    }
+                    Key.DirectionLeft, Key.DirectionRight -> {
                         infoTick++
                         true
                     }
@@ -579,14 +650,20 @@ private fun LivePlayer(
                     .glass(28.dp, darken = 0.30f)
                     .padding(horizontal = 32.dp, vertical = 22.dp)
             ) {
-                GText(ch.name, 34.sp, FontWeight.Bold, Color.White, maxLines = 1)
+                GText(
+                    (if (ch.url in favorites) "★ " else "") + ch.name,
+                    34.sp, FontWeight.Bold, Color.White, maxLines = 1,
+                )
                 Spacer(Modifier.height(4.dp))
                 GText(
                     ch.groups.joinToString(" · ") + "   ${index + 1} / ${list.size}",
                     19.sp, FontWeight.Normal, Color.White.copy(alpha = 0.75f), maxLines = 1,
                 )
                 Spacer(Modifier.height(10.dp))
-                GText(stringResource(R.string.live_hint), 16.sp, FontWeight.Normal, Color.White.copy(alpha = 0.55f), maxLines = 1)
+                GText(
+                    stringResource(R.string.live_hint) + "  ·  " + stringResource(R.string.live_hint_fav),
+                    16.sp, FontWeight.Normal, Color.White.copy(alpha = 0.55f), maxLines = 1,
+                )
             }
         }
     }

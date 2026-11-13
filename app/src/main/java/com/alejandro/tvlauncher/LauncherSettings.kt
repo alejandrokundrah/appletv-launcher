@@ -162,6 +162,17 @@ class LauncherSettings(context: Context) {
         sp.edit().putString("launched", launched.entries.joinToString(";") { "${it.key}=${it.value}" }).apply()
     }
 
+    /** Stream URLs of the Live TV channels marked as favourites, in the order they were added. */
+    var favoriteChannels: List<String> by mutableStateOf(
+        (sp.getString("fav_channels", "") ?: "").split('\n').filter { it.isNotBlank() }
+    )
+        private set
+
+    fun toggleFavoriteChannel(url: String) {
+        favoriteChannels = if (url in favoriteChannels) favoriteChannels - url else favoriteChannels + url
+        sp.edit().putString("fav_channels", favoriteChannels.joinToString("\n")).apply()
+    }
+
     fun togglePinned(packageName: String) {
         pinned = if (packageName in pinned) pinned - packageName else pinned + packageName
         sp.edit().putString("pinned", pinned.joinToString(",")).apply()
