@@ -41,4 +41,6 @@
     <string name="live_no_favorites">Aún no hay favoritos.</string>
     <string name="live_fav_browse_hint">Mantén OK en un canal para añadirlo a Favoritos</string>
     <string name="live_hint_fav">OK largo: favorito</string>
+    <string name="movies_cast">Reparto</string>
+    <string name="movies_more_like_this">Títulos similares</string>
 </resources>

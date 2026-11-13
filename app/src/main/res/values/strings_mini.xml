@@ -44,4 +44,6 @@
     <string name="live_no_favorites">No favorites yet.</string>
     <string name="live_fav_browse_hint">Hold OK on a channel to add it to Favorites</string>
     <string name="live_hint_fav">Hold OK: favorite</string>
+    <string name="movies_cast">Cast</string>
+    <string name="movies_more_like_this">More like this</string>
 </resources>
