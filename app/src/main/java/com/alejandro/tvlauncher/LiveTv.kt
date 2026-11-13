@@ -410,6 +410,7 @@ private fun ChannelBrowser(
     }
 }
 
+@kotlin.OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCard(
     ch: Channel,
