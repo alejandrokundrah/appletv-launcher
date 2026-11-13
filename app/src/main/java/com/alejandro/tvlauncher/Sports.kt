@@ -3,6 +3,7 @@ package com.alejandro.tvlauncher
 import android.annotation.SuppressLint
 import android.graphics.Color as AColor
 import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -185,10 +186,16 @@ private fun SportsPlayer(event: SportsEvent, onClose: () -> Unit) {
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            settings.userAgentString = settings.userAgentString.replace("; wv", "")
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                    request.isForMainFrame && request.url.host !in setOf("streamfree.top", "strmfree.st")
+                    request.isForMainFrame && request.url.host?.lowercase() !in setOf(
+                        "streamfree.top", "www.streamfree.top", "strmfree.st", "www.strmfree.st",
+                    )
             }
             loadUrl(source.url)
         }

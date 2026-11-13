@@ -834,6 +834,13 @@ private class PlayerHost(context: Context) {
             override fun onReceivedError(view: WebView, errorCode: Int, description: String?, failingUrl: String?) {
                 onLoadFailed?.invoke()
             }
+
+            // Some TV WebView builds crash their renderer on provider video pages. Keep the
+            // launcher process alive so the next configured player can be tried.
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                onLoadFailed?.invoke()
+                return true
+            }
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {
@@ -841,6 +848,7 @@ private class PlayerHost(context: Context) {
                     callback.onCustomViewHidden()
                     return
                 }
+                (view.parent as? ViewGroup)?.removeView(view)
                 customView = view
                 customCallback = callback
                 web.visibility = View.GONE
