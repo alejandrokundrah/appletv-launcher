@@ -619,13 +619,13 @@ private fun PlayRequest.step(delta: Int): Pair<Int, Int>? {
 
 private fun playerUrl(r: PlayRequest): String =
     if (r.title.isTv) {
-        "${MiniConfig.PLAYER_BASE}/tv/${r.title.id}/${r.season}/${r.episode}?color=${MiniConfig.PLAYER_COLOR}"
+        "${MiniConfig.PLAYER_BASE}/tv/${r.title.id}/${r.season}/${r.episode}"
     } else {
-        "${MiniConfig.PLAYER_BASE}/movie/${r.title.id}?color=${MiniConfig.PLAYER_COLOR}"
+        "${MiniConfig.PLAYER_BASE}/movie/${r.title.id}"
     }
 
 private fun isPlayerHost(host: String?): Boolean =
-    host != null && (host == "viduki.net" || host.endsWith(".viduki.net"))
+    host != null && (host == MiniConfig.PLAYER_HOST || host.endsWith("." + MiniConfig.PLAYER_HOST))
 
 /**
  * A WebView in a container that (a) sees remote keys first, so Next / Previous / Channel +/- can switch

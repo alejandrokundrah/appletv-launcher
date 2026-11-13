@@ -22,13 +22,13 @@ object MiniConfig {
     const val IPTV_M3U = "https://iptv-org.github.io/iptv/index.m3u"
 
     /**
-     * Movie / TV player. Movies: `{PLAYER_BASE}/movie/{id}?color={hex}`,
-     * shows: `{PLAYER_BASE}/tv/{id}/{season}/{episode}?color={hex}`.
+     * Movie / TV player. Movies: `{PLAYER_BASE}/movie/{tmdb_id}`,
+     * shows: `{PLAYER_BASE}/tv/{tmdb_id}/{season}/{episode}`.
      */
-    const val PLAYER_BASE = "https://viduki.net/3"
+    const val PLAYER_BASE = "https://vidly.pro"
 
-    /** Accent colour (hex, no #) passed to the player. */
-    const val PLAYER_COLOR = "0a84ff"
+    /** Host the player WebView may navigate to (everything else is blocked as an ad redirect). */
+    const val PLAYER_HOST = "vidly.pro"
 }
 
 /**

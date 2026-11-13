@@ -24,11 +24,11 @@ Streams are played with Media3 / ExoPlayer (HLS and plain files). Many free stre
 **Movies & TV** browses [TMDB](https://www.themoviedb.org) (trending, popular, top rated, search). Open a title for
 its details, pick a season / episode for shows, then **Play** opens the player in a WebView:
 
-- `https://viduki.net/3/movie/{tmdb_id}?color={hex}`
-- `https://viduki.net/3/tv/{tmdb_id}/{season}/{episode}?color={hex}`
+- `https://vidly.pro/movie/{tmdb_id}`
+- `https://vidly.pro/tv/{tmdb_id}/{season}/{episode}`
 
 While a show plays, **Media Next / Previous** (or Channel +/-) jump to the next / previous episode, **Back** leaves.
-The endpoints, TMDB key and player colour live in `MiniConfig` (`MiniApps.kt`).
+The endpoints and TMDB key live in `MiniConfig` (`MiniApps.kt`).
 
 ## Settings
 
