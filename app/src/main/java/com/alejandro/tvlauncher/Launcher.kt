@@ -297,6 +297,14 @@ fun LauncherRoot(
                         miniApp = null
                     },
                 )
+            } else if (miniApp == MiniApps.SPORTS) {
+                SportsApp(
+                    lite = lite,
+                    onClose = {
+                        restoreTo = MiniApps.SPORTS
+                        miniApp = null
+                    },
+                )
             } else if (showSettings) {
                 SettingsScreen(
                     settings = settings,

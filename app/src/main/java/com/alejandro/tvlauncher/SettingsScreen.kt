@@ -490,7 +490,7 @@ private fun MainPage(
                 BasicTextField(
                     value = customPlayerDraft,
                     onValueChange = { customPlayerDraft = it },
-                    singleLine = true,
+                    maxLines = 3,
                     textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                     modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                         .padding(12.dp),

@@ -32,8 +32,8 @@ object MiniConfig {
 
     const val ZXCSTREAM_BASE = "https://zxcstream.com/embed"
     const val ZXCSTREAM_HOST = "zxcstream.com"
-    const val VIDSRC_BASE = "https://vidsrc.pro/embed"
-    const val VIDSRC_HOST = "vidsrc.pro"
+    const val VIDSRC_BASE = "https://www.nontongo.win/embed"
+    const val VIDSRC_HOST = "nontongo.win"
 }
 
 /**
@@ -47,6 +47,7 @@ object MiniApps {
     const val LIVE = "mini:live"
     const val MOVIES = "mini:movies"
     const val MUSIC = "mini:music"
+    const val SPORTS = "mini:sports"
     const val MUSIC_PACKAGE = "com.opentune"
 
     fun isMini(app: AppEntry): Boolean = app.packageName.startsWith(PREFIX)
@@ -55,10 +56,12 @@ object MiniApps {
         val live = banner(0xFFFF6B6B.toInt(), 0xFF8E1B3A.toInt()) { c, p -> drawTv(c, p) }
         val movies = banner(0xFF8B6CFF.toInt(), 0xFF2A1B6E.toInt()) { c, p -> drawPlay(c, p) }
         val music = banner(0xFF38B8C9.toInt(), 0xFF102C52.toInt()) { c, p -> drawMusic(c, p) }
+        val sports = banner(0xFFFF5874.toInt(), 0xFF3D173A.toInt()) { c, p -> drawSports(c, p) }
         return listOf(
             entry(context.getString(R.string.mini_live_tv), LIVE, live, Color(0xFFE5484D)),
             entry(context.getString(R.string.mini_movies), MOVIES, movies, Color(0xFF7C5CFF)),
             entry(context.getString(R.string.mini_music), MUSIC, music, Color(0xFF38B8C9)),
+            entry(context.getString(R.string.mini_live_sports), SPORTS, sports, Color(0xFFFF5874)),
         )
     }
 
@@ -134,5 +137,32 @@ object MiniApps {
         val tops = floatArrayOf(92f, 60f, 36f, 76f, 52f, 92f)
         val bottoms = floatArrayOf(116f, 148f, 180f, 132f, 156f, 116f)
         xs.indices.forEach { i -> c.drawLine(xs[i], tops[i], xs[i], bottoms[i], p) }
+    }
+
+    /** The supplied monitor + smartphone SVG logo, drawn at the banner's icon scale. */
+    private fun drawSports(c: Canvas, p: Paint) {
+        c.save()
+        c.translate(96f, 12f)
+        c.scale(8f, 8f)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 2.5f
+        p.strokeCap = Paint.Cap.ROUND
+        p.strokeJoin = Paint.Join.ROUND
+        p.color = AColor.WHITE
+        val monitor = Path().apply {
+            moveTo(18f, 8f)
+            lineTo(18f, 6f)
+            cubicTo(18f, 4.9f, 17.1f, 4f, 16f, 4f)
+            lineTo(4f, 4f)
+            cubicTo(2.9f, 4f, 2f, 4.9f, 2f, 6f)
+            lineTo(2f, 13f)
+            cubicTo(2f, 14.1f, 2.9f, 15f, 4f, 15f)
+            lineTo(12f, 15f)
+        }
+        c.drawPath(monitor, p)
+        c.drawLine(10f, 19f, 10f, 15.04f, p)
+        c.drawLine(7f, 19f, 12f, 19f, p)
+        c.drawRoundRect(RectF(16f, 12f, 22f, 22f), 2f, 2f, p)
+        c.restore()
     }
 }

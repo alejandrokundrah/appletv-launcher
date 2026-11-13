@@ -720,24 +720,41 @@ private fun playerUrl(base: String, r: PlayRequest): String {
     val type = if (r.title.isTv) "tv" else "movie"
     val suffix = if (r.title.isTv) "/${r.title.id}/${r.season}/${r.episode}" else "/${r.title.id}"
     val template = base.trimEnd('/')
-    val hasTemplate = listOf("{type}", "{id}", "{season}", "{episode}").any { it in template }
+    // `{tmdb_id}` is an alias for `{id}` used by several custom providers.
+    // Treat it as a complete template too, otherwise the legacy suffix below
+    // would be appended to an already-complete provider URL.
+    val hasTemplate = listOf("{type}", "{id}", "{tmdb_id}", "{season}", "{episode}").any { it in template }
     return template.replace("{type}", type).replace("{id}", r.title.id.toString())
+        .replace("{tmdb_id}", r.title.id.toString())
         .replace("{season}", r.season.toString()).replace("{episode}", r.episode.toString())
         .let { if (hasTemplate) it else it + "/$type$suffix" }
 }
+
+/** A custom provider may use separate movie and TV templates. Movie is first, TV second. */
+private fun customPlayerTemplate(value: String, isTv: Boolean): String {
+    val templates = value.lines().map { it.trim() }.filter { it.isNotBlank() }
+    return when {
+        templates.size >= 2 -> templates[if (isTv) 1 else 0]
+        templates.isNotEmpty() -> templates[0]
+        else -> value.trim()
+    }
+}
+
+private fun customPlayerUrl(value: String, r: PlayRequest): String =
+    playerUrl(customPlayerTemplate(value, r.title.isTv), r)
 
 private fun playerUrls(r: PlayRequest, settings: LauncherSettings): List<String> = buildList {
     when (settings.movieServer.coerceIn(0, 4)) {
         1 -> add(playerUrl(MiniConfig.PLAYER_BASE, r))
         2 -> add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
         3 -> add(playerUrl(MiniConfig.VIDSRC_BASE, r))
-        4 -> if (settings.customPlayerUrl.isNotBlank()) add(playerUrl(settings.customPlayerUrl, r))
+        4 -> if (settings.customPlayerUrl.isNotBlank()) add(customPlayerUrl(settings.customPlayerUrl, r))
         else -> {
             add(playerUrl(MiniConfig.PLAYER_BASE, r))
             add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
             add(playerUrl(MiniConfig.VIDSRC_BASE, r))
             if (settings.customPlayerEnabled && settings.customPlayerUrl.isNotBlank()) {
-                add(playerUrl(settings.customPlayerUrl, r))
+                add(customPlayerUrl(settings.customPlayerUrl, r))
             }
         }
     }
