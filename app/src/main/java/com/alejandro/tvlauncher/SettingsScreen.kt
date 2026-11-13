@@ -331,6 +331,14 @@ private fun MainPage(
         }
         item {
             SettingRow(
+                title = stringResource(R.string.show_trending_movies),
+                value = stringResource(if (settings.showTrendingMovies) R.string.on else R.string.off),
+                onLeft = { settings.showTrendingMovies = !settings.showTrendingMovies },
+                onRight = { settings.showTrendingMovies = !settings.showTrendingMovies },
+            )
+        }
+        item {
+            SettingRow(
                 title = stringResource(R.string.allow_titles),
                 value = stringResource(if (tvListingsGranted) R.string.allowed else R.string.allow),
                 onClick = { if (!tvListingsGranted) onRequestTvListings() },

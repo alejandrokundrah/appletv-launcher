@@ -106,6 +106,7 @@
     <string name="perf_auto_lighter">Auto: lighter</string>
     <string name="perf_auto_full">Auto: full</string>
     <string name="show_content">Show watched / recent titles</string>
+    <string name="show_trending_movies">Show trending movies on Home</string>
     <string name="allow_titles">Allow reading app titles (needed for the row above)</string>
     <string name="row_continue">Continue watching</string>
     <string name="row_recommended">Recommended</string>

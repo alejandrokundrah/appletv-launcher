@@ -104,6 +104,9 @@ class LauncherSettings(context: Context) {
     /** Show "continue watching" / recent titles from the focused app (e.g. Netflix) above the tiles. */
     var showContent by boolPref("show_content", true)
 
+    /** Show the weekly TMDB movie posters on the launcher homepage. */
+    var showTrendingMovies by boolPref("show_trending_movies", false)
+
     /** We only ask for the TV-listings permission (needed to read other apps' titles) once automatically. */
     var askedTvListings by boolPref("asked_tv_listings", false)
 
@@ -234,6 +237,7 @@ class LauncherSettings(context: Context) {
         showNetwork = true
         performance = 0
         showContent = true
+        showTrendingMovies = false
         sortMode = 0
         showInputs = true
         slideshow = 0

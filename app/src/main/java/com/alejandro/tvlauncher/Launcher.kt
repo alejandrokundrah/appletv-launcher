@@ -186,8 +186,8 @@ fun LauncherRoot(
     }
 
     // A lightweight public row for the launcher homepage. It refreshes when Home is pressed again.
-    val trendingMovies by produceState<List<TmdbTitle>>(emptyList(), homeSignal) {
-        value = Tmdb.trendingMovies().take(12)
+    val trendingMovies by produceState<List<TmdbTitle>>(emptyList(), homeSignal, settings.showTrendingMovies) {
+        value = if (settings.showTrendingMovies) Tmdb.trendingMovies().take(12) else emptyList()
     }
 
     val accent by animateColorAsState(
