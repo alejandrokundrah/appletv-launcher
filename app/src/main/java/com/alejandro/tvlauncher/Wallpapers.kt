@@ -37,7 +37,15 @@ object Wallpapers {
 
     /** A new photo each day, downloaded from [DAILY_SOURCE] (a free random-photo service, seeded by the date). */
     const val DAILY = "daily"
-    private const val DAILY_SOURCE = "https://picsum.photos/seed/%s/1920/1080"
+    private const val FALLBACK_SOURCE = "https://picsum.photos/seed/%s/1920/1080"
+
+    /**
+     * Unsplash API "Access Key" (free at https://unsplash.com/developers: create an app, copy the key).
+     * With it, the daily photo is a random landscape from Unsplash's wallpapers; without it the launcher
+     * falls back to picsum.photos so the feature still works.
+     */
+    private const val UNSPLASH_KEY = ""
+    private const val UNSPLASH_QUERY = "wallpapers"
 
     fun dailyFile(context: Context): File = File(context.filesDir, "wallpaper_daily.jpg")
 
@@ -70,7 +78,8 @@ object Wallpapers {
         val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         if (sp.getString("daily_date", "") == today && dailyFile(context).exists()) return@withContext false
         runCatching {
-            val conn = URL(DAILY_SOURCE.format(today)).openConnection() as HttpURLConnection
+            val photo = unsplashPhoto()
+            val conn = URL(photo?.first ?: FALLBACK_SOURCE.format(today)).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 15000
             val tmp = File(context.filesDir, "wallpaper_daily.tmp")
@@ -83,10 +92,40 @@ object Wallpapers {
                 false
             } else {
                 tmp.renameTo(dailyFile(context))
-                sp.edit().putString("daily_date", today).apply()
+                sp.edit().putString("daily_date", today).putString("daily_credit", photo?.second.orEmpty()).apply()
                 true
             }
         }.getOrDefault(false)
+    }
+
+    /** Picks a random Unsplash landscape: (image url sized for a TV, "Photo by NAME on Unsplash"), or null. */
+    private fun unsplashPhoto(): Pair<String, String>? {
+        if (UNSPLASH_KEY.isBlank()) return null
+        return runCatching {
+            val api = "https://api.unsplash.com/photos/random?orientation=landscape&content_filter=high&query=$UNSPLASH_QUERY"
+            val conn = URL(api).openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 10000
+            conn.setRequestProperty("Authorization", "Client-ID $UNSPLASH_KEY")
+            conn.setRequestProperty("Accept-Version", "v1")
+            if (conn.responseCode != 200) return@runCatching null
+            val o = org.json.JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val raw = o.getJSONObject("urls").getString("raw")
+            val sep = if ('?' in raw) '&' else '?'
+            val url = raw + sep + "w=1920&h=1080&fit=crop&q=80&fm=jpg"
+            val credit = "Photo by " + o.optJSONObject("user")?.optString("name").orEmpty() + " on Unsplash"
+            // The Unsplash API rules ask apps to report a download when a photo is used.
+            o.optJSONObject("links")?.optString("download_location")?.takeIf { it.isNotBlank() }?.let { loc ->
+                runCatching {
+                    (URL(loc).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                        setRequestProperty("Authorization", "Client-ID $UNSPLASH_KEY")
+                    }.responseCode
+                }
+            }
+            url to credit
+        }.getOrNull()
     }
 
     private fun decodeRes(context: Context, resId: Int): Bitmap =
