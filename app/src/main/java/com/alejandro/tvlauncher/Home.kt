@@ -264,7 +264,10 @@ private fun TrendingMoviesRow(items: List<TmdbTitle>, tileWidth: Dp, lite: Boole
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             itemsIndexed(cards, key = { _, item -> item.packageName }) { index, item ->
-                ContentCard(item, tileWidth * 0.85f, tileWidth * 0.85f * 9 / 16, lite) {
+                val cardWidth = tileWidth * 0.85f
+                // Match Movies & TV's portrait poster cards (2:3), so artwork is not letterboxed
+                // into a wide home-screen thumbnail.
+                ContentCard(item, cardWidth, cardWidth * 3 / 2, lite) {
                     onOpen(items[index])
                 }
             }
