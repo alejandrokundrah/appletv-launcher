@@ -262,6 +262,7 @@ fun LauncherRoot(
             val menu = menuApp
             if (miniApp == MiniApps.LIVE) {
                 LiveTvApp(
+                    settings = settings,
                     lite = lite,
                     onClose = {
                         restoreTo = MiniApps.LIVE

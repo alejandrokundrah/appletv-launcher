@@ -40,4 +40,8 @@
         <item quantity="one">%1$d season</item>
         <item quantity="other">%1$d seasons</item>
     </plurals>
+    <string name="live_favorites">★ Favorites</string>
+    <string name="live_no_favorites">No favorites yet.</string>
+    <string name="live_fav_browse_hint">Hold OK on a channel to add it to Favorites</string>
+    <string name="live_hint_fav">Hold OK: favorite</string>
 </resources>
