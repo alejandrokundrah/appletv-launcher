@@ -727,12 +727,21 @@ private fun playerUrl(base: String, r: PlayRequest): String {
 }
 
 private fun playerUrls(r: PlayRequest, settings: LauncherSettings): List<String> = buildList {
-    add(playerUrl(MiniConfig.PLAYER_BASE, r))
-    if (settings.zxcstreamPlayer) add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
-    if (settings.vidsrcPlayer) add(playerUrl(MiniConfig.VIDSRC_BASE, r))
-    if (settings.customPlayerEnabled && settings.customPlayerUrl.isNotBlank()) {
-        add(playerUrl(settings.customPlayerUrl, r))
+    when (settings.movieServer.coerceIn(0, 4)) {
+        1 -> add(playerUrl(MiniConfig.PLAYER_BASE, r))
+        2 -> add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
+        3 -> add(playerUrl(MiniConfig.VIDSRC_BASE, r))
+        4 -> if (settings.customPlayerUrl.isNotBlank()) add(playerUrl(settings.customPlayerUrl, r))
+        else -> {
+            add(playerUrl(MiniConfig.PLAYER_BASE, r))
+            add(playerUrl(MiniConfig.ZXCSTREAM_BASE, r))
+            add(playerUrl(MiniConfig.VIDSRC_BASE, r))
+            if (settings.customPlayerEnabled && settings.customPlayerUrl.isNotBlank()) {
+                add(playerUrl(settings.customPlayerUrl, r))
+            }
+        }
     }
+    if (isEmpty()) add(playerUrl(MiniConfig.PLAYER_BASE, r))
 }
 
 private fun isPlayerHost(host: String?, allowedHosts: Set<String>): Boolean =
@@ -748,6 +757,7 @@ private class PlayerHost(context: Context) {
     var onKey: ((Int) -> Boolean)? = null
     var onLoadFailed: (() -> Unit)? = null
     var onPageLoaded: (() -> Unit)? = null
+    var onPageUnavailable: (() -> Unit)? = null
 
     val root = object : FrameLayout(context) {
         override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -792,6 +802,15 @@ private class PlayerHost(context: Context) {
 
             override fun onPageFinished(view: WebView, url: String) {
                 onPageLoaded?.invoke()
+                // A provider can return HTTP 200 with a normal-looking "not found" page.
+                // Treat that as a failed server so the next configured server gets a chance.
+                view.evaluateJavascript(
+                    "(document.title + ' ' + (document.body ? document.body.innerText : '')).toLowerCase()"
+                ) { text ->
+                    if (Regex("not found|no results|unavailable|does not exist|couldn't find|cannot find").containsMatchIn(text)) {
+                        onPageUnavailable?.invoke()
+                    }
+                }
             }
 
             @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
@@ -850,7 +869,7 @@ private fun VodPlayer(settings: LauncherSettings, req: PlayRequest, onBack: () -
     val host = remember { PlayerHost(context) }
     val currentReq by rememberUpdatedState(req)
     val currentOnEpisode by rememberUpdatedState(onEpisode)
-    val urls = remember(req, settings.zxcstreamPlayer, settings.vidsrcPlayer, settings.customPlayerEnabled, settings.customPlayerUrl) {
+    val urls = remember(req, settings.movieServer, settings.customPlayerEnabled, settings.customPlayerUrl) {
         playerUrls(req, settings)
     }
     var serverIndex by remember(req) { mutableIntStateOf(0) }
@@ -876,6 +895,9 @@ private fun VodPlayer(settings: LauncherSettings, req: PlayRequest, onBack: () -
 
     host.setAllowedHosts(urls.mapNotNull { Uri.parse(it).host }.toSet())
     host.onLoadFailed = {
+        if (serverIndex < urls.lastIndex) serverIndex++
+    }
+    host.onPageUnavailable = {
         if (serverIndex < urls.lastIndex) serverIndex++
     }
     host.onPageLoaded = { pageLoaded = true }

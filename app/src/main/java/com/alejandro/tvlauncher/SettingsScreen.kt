@@ -271,18 +271,18 @@ private fun MainPage(
         item { SectionHeader(stringResource(R.string.sec_player)) }
         item {
             SettingRow(
-                title = stringResource(R.string.player_zxcstream),
-                value = stringResource(if (settings.zxcstreamPlayer) R.string.on else R.string.off),
-                onLeft = { settings.zxcstreamPlayer = !settings.zxcstreamPlayer },
-                onRight = { settings.zxcstreamPlayer = !settings.zxcstreamPlayer },
-            )
-        }
-        item {
-            SettingRow(
-                title = stringResource(R.string.player_vidsrc),
-                value = stringResource(if (settings.vidsrcPlayer) R.string.on else R.string.off),
-                onLeft = { settings.vidsrcPlayer = !settings.vidsrcPlayer },
-                onRight = { settings.vidsrcPlayer = !settings.vidsrcPlayer },
+                title = stringResource(R.string.player_server),
+                value = stringResource(
+                    when (settings.movieServer.coerceIn(0, 4)) {
+                        1 -> R.string.player_server_vidly
+                        2 -> R.string.player_server_zxcstream
+                        3 -> R.string.player_server_vidsrc
+                        4 -> R.string.player_server_custom
+                        else -> R.string.player_server_all
+                    }
+                ),
+                onLeft = { settings.movieServer = (settings.movieServer + 4) % 5 },
+                onRight = { settings.movieServer = (settings.movieServer + 1) % 5 },
             )
         }
         item {

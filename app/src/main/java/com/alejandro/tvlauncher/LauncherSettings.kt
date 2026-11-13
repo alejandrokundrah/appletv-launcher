@@ -128,9 +128,11 @@ class LauncherSettings(context: Context) {
     /** Play the system's navigation / click sounds while moving around (follows the system sound-effects setting). */
     var sounds by boolPref("sounds", false)
 
-    /** Optional movie/TV WebView fallbacks, tried after the primary Vidly player fails. */
+    /** Legacy toggles kept for preference compatibility; server selection uses [movieServer]. */
     var zxcstreamPlayer by boolPref("zxcstream_player", false)
     var vidsrcPlayer by boolPref("vidsrc_player", false)
+    /** 0 = all servers, 1 = Vidly, 2 = ZXCStream, 3 = VidSrc, 4 = custom. */
+    var movieServer by intPref("movie_server", 0)
     var customPlayerEnabled by boolPref("custom_player_enabled", false)
     var customPlayerUrl by stringPref("custom_player_url", "")
 
@@ -245,6 +247,7 @@ class LauncherSettings(context: Context) {
         sounds = false
         zxcstreamPlayer = false
         vidsrcPlayer = false
+        movieServer = 0
         customPlayerEnabled = false
         customPlayerUrl = ""
         pinned = emptyList()

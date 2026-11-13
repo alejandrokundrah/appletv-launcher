@@ -123,17 +123,16 @@ object MiniApps {
         c.drawPath(tri, p)
     }
 
-    /** A simple music note for the native OpenTune handoff tile. */
+    /** The six-line audio icon used by the music app. */
     private fun drawMusic(c: Canvas, p: Paint) {
         p.style = Paint.Style.STROKE
-        p.strokeWidth = 11f
+        p.strokeWidth = 10f
         p.strokeCap = Paint.Cap.ROUND
         p.color = AColor.WHITE
-        c.drawLine(218f, 56f, 218f, 137f, p)
-        c.drawLine(218f, 56f, 270f, 44f, p)
-        c.drawLine(270f, 44f, 270f, 118f, p)
-        p.style = Paint.Style.FILL
-        c.drawOval(RectF(154f, 126f, 224f, 166f), p)
-        c.drawOval(RectF(206f, 107f, 276f, 147f), p)
+        // SVG path coordinates scaled by 8 and centred in the 192px icon crop.
+        val xs = floatArrayOf(112f, 144f, 176f, 208f, 240f, 272f)
+        val tops = floatArrayOf(92f, 60f, 36f, 76f, 52f, 92f)
+        val bottoms = floatArrayOf(116f, 148f, 180f, 132f, 156f, 116f)
+        xs.indices.forEach { i -> c.drawLine(xs[i], tops[i], xs[i], bottoms[i], p) }
     }
 }

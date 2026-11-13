@@ -14,6 +14,12 @@
     <string name="sec_status">STATUS BAR</string>
     <string name="sec_system">SYSTEM</string>
     <string name="sec_player">MOVIE PLAYER</string>
+    <string name="player_server">Playback server</string>
+    <string name="player_server_all">All servers</string>
+    <string name="player_server_vidly">Vidly</string>
+    <string name="player_server_zxcstream">ZXCStream</string>
+    <string name="player_server_vidsrc">VidSrc</string>
+    <string name="player_server_custom">Custom</string>
     <string name="player_zxcstream">Use zxcstream fallback</string>
     <string name="player_vidsrc">Use vidsrc fallback</string>
     <string name="player_custom_enabled">Use custom player</string>
